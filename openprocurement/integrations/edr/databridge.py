@@ -120,7 +120,7 @@ class EdrDataBridge(object):
                     yield tender
                 else:
                     logger.info('Skipping tender {} with status {} with procurementMethodType {}'.format(
-                                tender['id'], tender['status'], tender['procurementMethodType']),
+                                    tender['id'], tender['status'], tender['procurementMethodType']),
                                 extra=journal_context({"MESSAGE_ID": DATABRIDGE_INFO},
                                                       params={"TENDER_ID": tender['id']}))
             logger.info('Sleep {} sync...'.format(direction), extra=journal_context({"MESSAGE_ID": DATABRIDGE_SYNC_SLEEP}))
@@ -190,7 +190,7 @@ class EdrDataBridge(object):
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
                 logger.exception(e)
                 logger.info('Put tender {} with {} id {} back to tenders queue'.format(
-                    tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
                 self.data_queue.put((tender_data.tender_id, tender_data.item_id, tender_data.code))
                 gevent.sleep(self.delay)
@@ -216,15 +216,13 @@ class EdrDataBridge(object):
                 logger.info('Get subject {}  tender {} from data_queue'.format(tender_data.code, tender_data.tender_id),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                                   params={"TENDER_ID": tender_data.tender_id}))
-                # tender = self.tenders_sync_client.get_tender(
-                #     tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
             except Exception as e:
                 logger.warn('Fail to get tender {} with {} id {} from edrpou queue'.format(
-                    tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
                 logger.exception(e)
                 logger.info('Put tender {} with {} id {} back to tenders queue'.format(
-                    tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
                 self.subjects_queue.put((tender_data.tender_id, tender_data.item_id, tender_data.code))
                 gevent.sleep(self.delay)
@@ -251,8 +249,8 @@ class EdrDataBridge(object):
 
     def upload_file(self):
         while True:
+            tender_data = self.upload_file_queue.get()
             try:
-                tender_data = self.upload_file_queue.get()
                 tender = self.tenders_sync_client.get_tender(
                     tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
                 # create patch request to award/qualification with document to upload
@@ -260,36 +258,38 @@ class EdrDataBridge(object):
                     document = self.client.upload_award_document(create_file(tender_data.file_content), tender, tender_data.item_id)
                 else:
                     document = self.client.upload_qualification_document(create_file(tender_data.file_content), tender, tender_data.item_id)
-                logger.info('Successfully uploaded file for tender {} {} {}'.format(
-                            tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
-                                                    params={"TENDER_ID": tender_data.tender_id}))
-                data = Data(tender_data.tender_id, tender_data.item_id,
-                            tender_data.code, tender_data.item_name, {'document_id': document['data']['id']})
-                self.update_file_queue.put(data)
             except Exception as e:
                 logger.info('Exception while uploading file to tender {} {} {}. Message: {}'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
                 raise e
+            else:
+                data = Data(tender_data.tender_id, tender_data.item_id,
+                            tender_data.code, tender_data.item_name, {'document_id': document['data']['id']})
+                self.update_file_queue.put(data)
+                logger.info('Successfully uploaded file for tender {} {} {}'.format(
+                        tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
+                                          params={"TENDER_ID": tender_data.tender_id}))
 
     def update_file(self):
         while True:
+            tender_data = self.update_file_queue.get()
             try:
-                tender_data = self.update_file_queue.get()
                 tender = self.tenders_sync_client.get_tender(
                     tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
                 self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
                     self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
                     tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}},
                                                               headers={'X-Access-Token': getattr(getattr(tender, 'access', ''), 'token', '')})
-                logger.info('Successfully updated file for tender {} {} {}'.format(
-                            tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
-                                                    params={"TENDER_ID": tender_data.tender_id}))
             except Exception as e:
                 logger.info('Exception while updating file to tender {} {} {}. Message: {}'.format(
                                 tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
                 raise e
+            else:
+                logger.info('Successfully updated file for tender {} {} {}'.format(
+                        tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
+                                          params={"TENDER_ID": tender_data.tender_id}))
 
     def handle_status_response(self, response, tender_id):
         if response.status_code == 401:
@@ -321,10 +321,10 @@ class EdrDataBridge(object):
                                                   {"TENDER_ID": tender['id']}))
                 self.filtered_tenders_queue.put(tender['id'])
         except Exception as e:
-            logger.warn('Forward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
+            logger.warning('Forward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
             logger.exception(e)
         else:
-            logger.warn('Forward data sync finished!')
+            logger.warning('Forward data sync finished!')
 
     def get_tenders_backward(self):
         logger.info('Start backward data sync worker...')
@@ -336,7 +336,7 @@ class EdrDataBridge(object):
                                                   {"TENDER_ID": tender['id']}))
                 self.filtered_tenders_queue.put(tender['id'])
         except Exception as e:
-            logger.warn('Backward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
+            logger.warning('Backward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
             logger.exception(e)
         else:
             logger.info('Backward data sync finished.')
@@ -347,7 +347,7 @@ class EdrDataBridge(object):
                      gevent.spawn(self.get_tenders_forward)]
 
     def _restart_synchronization_workers(self):
-        logger.warn('Restarting synchronization', extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART}, {}))
+        logger.warning('Restarting synchronization', extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART}, {}))
         for j in self.jobs:
             j.kill()
         self._start_synchronization_workers()
@@ -383,7 +383,7 @@ class EdrDataBridge(object):
 
                 for name, job in self.immortal_jobs.items():
                     if job.dead:
-                        logger.warn('Restarting {} worker'.format(name))
+                        logger.warning('Restarting {} worker'.format(name))
                         self.immortal_jobs[name] = gevent.spawn(getattr(self, name))
         except KeyboardInterrupt:
             logger.info('Exiting...')
