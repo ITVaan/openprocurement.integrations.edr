@@ -75,7 +75,7 @@ class EdrDataBridge(object):
         self.until_too_many_requests_event = gevent.event.Event()
         self.until_too_many_requests_event.set()
         self.delay = self.config_get('delay') or 15
-        self.edrApiClient = EdrClient(self.config_get('edr_api_server'), self.config_get('edr_api_token'), port=self.config_get('edr_api_port'))
+        self.edrApiClient = EdrClient(host=self.config_get('edr_api_server'), token=self.config_get('edr_api_token'), port=self.config_get('edr_api_port'))
         self.required_fields = ['names', 'founders', 'management', 'activity_kinds', 'address', 'bankruptcy']
 
     def config_get(self, name):
