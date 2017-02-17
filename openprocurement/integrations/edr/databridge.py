@@ -30,6 +30,7 @@ from openprocurement.integrations.edr.journal_msg_ids import (
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 Data = namedtuple('Data', ['tender_id', 'item_id', 'code', 'item_name'])
+id_passport_len = 9
 
 
 def generate_req_id():
@@ -49,6 +50,10 @@ def create_file(details):
     temporary_file.seek(0)
 
     return temporary_file
+
+
+def validate_param(code):
+    return 'code' if code.isdigit() and len(code) != id_passport_len else 'passport'
 
 
 class EdrDataBridge(object):
@@ -194,7 +199,7 @@ class EdrDataBridge(object):
                 gevent.sleep(self.delay)
             else:
                 gevent.wait([self.until_too_many_requests_event])
-                response = self.edrApiClient.get_subject(tender_data.code)
+                response = self.edrApiClient.get_subject(validate_param(tender_data.code), tender_data.code)
                 if response.status_code == 200:
                     # Create new Data object. Write to Data.code list of subject ids from EDR.
                     # List because EDR can return 0, 1 or 2 values to our reques
