@@ -192,7 +192,7 @@ class EdrDataBridge(object):
                 logger.info('Put tender {} with {} id {} back to tenders queue'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
-                self.filtered_tenders_queue.put((tender_data.tender_id, tender_data.item_id, tender_data.code))
+                self.data_queue.put((tender_data.tender_id, tender_data.item_id, tender_data.code))
                 gevent.sleep(self.delay)
             else:
                 gevent.wait([self.until_too_many_requests_event])
@@ -364,10 +364,19 @@ class EdrDataBridge(object):
         self._start_synchronization_workers()
         self._start_steps()
         backward_worker, forward_worker = self.jobs
+        counter = 0
 
         try:
             while True:
                 gevent.sleep(self.delay)
+                if counter == 20:
+                    logger.info(
+                        'Current state: filtered tenders {}; Data queue {}; Subjects {}; Upload file {}; '
+                        'Update file {}'.format(self.filtered_tenders_queue.qsize(), self.data_queue.qsize(),
+                                                self.subjects_queue.qsize(), self.upload_file_queue.qsize(),
+                                                self.update_file_queue.qsize()))
+                    counter = 0
+                counter += 1
                 if forward_worker.dead or (backward_worker.dead and not backward_worker.successful()):
                     self._restart_synchronization_workers()
                     backward_worker, forward_worker = self.jobs
