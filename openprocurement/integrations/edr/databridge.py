@@ -29,7 +29,7 @@ from openprocurement.integrations.edr.journal_msg_ids import (
     DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE, DATABRIDGE_SUCCESS_UPLOAD_FILE)
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
-Data = namedtuple('Data', ['tender_id', 'item_id', 'code', 'item_name'])
+Data = namedtuple('Data', ['tender_id', 'item_id', 'code', 'item_name', 'file_content'])
 
 
 def generate_req_id():
@@ -71,6 +71,8 @@ class EdrDataBridge(object):
         self.filtered_tenders_queue = Queue(maxsize=buffers_size)
         self.data_queue = Queue(maxsize=buffers_size)
         self.subjects_queue = Queue(maxsize=buffers_size)
+        self.upload_file_queue = Queue(maxsize=buffers_size)
+        self.update_file_queue = Queue(maxsize=buffers_size)
         self.initialization_event = gevent.event.Event()
         self.until_too_many_requests_event = gevent.event.Event()
         self.until_too_many_requests_event.set()
@@ -151,7 +153,7 @@ class EdrDataBridge(object):
                         if award['status'] == 'pending' and not [document for document in award.get('documents', [])
                                                                  if document.get('documentType') == 'registerExtract']:
                             for supplier in award['suppliers']:
-                                tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards')
+                                tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None)
                                 self.data_queue.put(tender_data)
                         else:
                             logger.info('Tender {} award {} is not in status pending or award has already document '
@@ -164,7 +166,7 @@ class EdrDataBridge(object):
                                      if document.get('documentType') == 'registerExtract']:
                             appropriate_bid = [b for b in tender['bids'] if b['id'] == qualification['bidID']][0]
                             tender_data = Data(tender['id'], qualification['id'],
-                                               appropriate_bid['tenderers'][0]['identifier']['id'], 'qualifications')
+                                               appropriate_bid['tenderers'][0]['identifier']['id'], 'qualifications', None)
                             self.data_queue.put(tender_data)
                             logger.info('Processing tender {} bid {}'.format(tender['id'], appropriate_bid['id']),
                                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_PROCESS},
@@ -199,7 +201,7 @@ class EdrDataBridge(object):
                     # Create new Data object. Write to Data.code list of subject ids from EDR.
                     # List because EDR can return 0, 1 or 2 values to our reques
                     data = Data(tender_data.tender_id, tender_data.item_id,
-                                [subject['id'] for subject in response.json()], tender_data.item_name)
+                                [subject['id'] for subject in response.json()], tender_data.item_name, None)
                     self.subjects_queue.put(data)
                     logger.info('Put tender {} {} {} to subjects_queue.'.format(tender_data.tender_id,
                                                                                 tender_data.item_name,
@@ -214,8 +216,8 @@ class EdrDataBridge(object):
                 logger.info('Get subject {}  tender {} from data_queue'.format(tender_data.code, tender_data.tender_id),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                                   params={"TENDER_ID": tender_data.tender_id}))
-                tender = self.tenders_sync_client.get_tender(
-                    tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
+                # tender = self.tenders_sync_client.get_tender(
+                #     tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
             except Exception as e:
                 logger.warn('Fail to get tender {} with {} id {} from edrpou queue'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -229,7 +231,7 @@ class EdrDataBridge(object):
             else:
                 gevent.wait([self.until_too_many_requests_event])
                 if not tender_data.code:
-                    temporary_file = create_file({'error': 'Couldn\'t find this code in EDR.'})
+                    details = {'error': 'Couldn\'t find this code in EDR.'}
                     logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
                                 extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
                                                       params={"TENDER_ID": tender_data.tender_id}))
@@ -237,41 +239,57 @@ class EdrDataBridge(object):
                     response = self.edrApiClient.get_subject_details(subject_id)
                     if response.status_code == 200:
                         details = {key: value for key, value in response.json().items() if key in self.required_fields}
-                        temporary_file = create_file(details)
-                        logger.info('Successfully created file for tender {} {} {}'.format(
-                                    tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
-                                                          params={"TENDER_ID": tender_data.tender_id}))
                     else:
-                        self.handle_status_response(response, tender.tender_id)
+                        self.handle_status_response(response, tender_data.tender_id)
+                data = Data(tender_data.tender_id, tender_data.item_id,
+                            tender_data.code, tender_data.item_name, details)
+                self.upload_file_queue.put(data)
+                logger.info('Successfully created file for tender {} {} {}'.format(
+                            tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
+                                                  params={"TENDER_ID": tender_data.tender_id}))
+
+    def upload_file(self):
+        while True:
+            try:
+                tender_data = self.upload_file_queue.get()
+                tender = self.tenders_sync_client.get_tender(
+                    tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
                 # create patch request to award/qualification with document to upload
-                try:
-                    if tender_data.item_name == 'awards':
-                        document = self.client.upload_award_document(temporary_file, tender, tender_data.item_id)
-                    else:
-                        document = self.client.upload_qualification_document(temporary_file, tender, tender_data.item_id)
-                    logger.info('Successfully uploaded file for tender {} {} {}'.format(
-                                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                                extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
-                                                      params={"TENDER_ID": tender_data.tender_id}))
-                    self.client._patch_resource_item(
-                        '{}/{}/{}/{}/documents/{}'.format(
-                            self.client.prefix_path, tender_data.tender_id,
-                            tender_data.item_name, tender_data.item_id,
-                            document['data']['id']
-                        ),
-                        payload={"data": {"documentType": "registerExtract"}},
-                        headers={'X-Access-Token': getattr(
-                            getattr(tender, 'access', ''), 'token', '')}
-                    )
-                    logger.info('Successfully updated file for tender {} {} {}'.format(
-                                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                                extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
-                                                      params={"TENDER_ID": tender_data.tender_id}))
-                except Exception as e:
-                    logger.info('Exception while uploading/updating file to tender {} {} {}. Message: {}'.format(
-                                    tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
-                    raise e
+                if tender_data.item_name == 'awards':
+                    document = self.client.upload_award_document(create_file(tender_data.file_content), tender, tender_data.item_id)
+                else:
+                    document = self.client.upload_qualification_document(create_file(tender_data.file_content), tender, tender_data.item_id)
+                logger.info('Successfully uploaded file for tender {} {} {}'.format(
+                            tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
+                                                    params={"TENDER_ID": tender_data.tender_id}))
+                data = Data(tender_data.tender_id, tender_data.item_id,
+                            tender_data.code, tender_data.item_name, {'document_id': document['data']['id']})
+                self.update_file_queue.put(data)
+            except Exception as e:
+                logger.info('Exception while uploading file to tender {} {} {}. Message: {}'.format(
+                    tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
+                raise e
+
+    def update_file(self):
+        while True:
+            try:
+                tender_data = self.update_file_queue.get()
+                tender = self.tenders_sync_client.get_tender(
+                    tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
+                self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
+                    self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
+                    tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}},
+                                                              headers={'X-Access-Token': getattr(getattr(tender, 'access', ''), 'token', '')})
+                logger.info('Successfully updated file for tender {} {} {}'.format(
+                            tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
+                                                    params={"TENDER_ID": tender_data.tender_id}))
+            except Exception as e:
+                logger.info('Exception while updating file to tender {} {} {}. Message: {}'.format(
+                                tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
+                raise e
 
     def handle_status_response(self, response, tender_id):
         if response.status_code == 401:
@@ -281,7 +299,7 @@ class EdrDataBridge(object):
 
         elif response.status_code == 429:
             self.until_too_many_requests_event.clear()
-            gevent.sleep(response.headers.get('Retry-After'))
+            gevent.sleep(response.headers.get('Retry-After', self.delay))
             self.until_too_many_requests_event.set()
 
         elif response.status_code == 402:
@@ -337,7 +355,9 @@ class EdrDataBridge(object):
     def _start_steps(self):
         self.immortal_jobs = {'prepare_data': gevent.spawn(self.prepare_data),
                               'get_subject_id': gevent.spawn(self.get_subject_id),
-                              'get_subject_details': gevent.spawn(self.get_subject_details)}
+                              'get_subject_details': gevent.spawn(self.get_subject_details),
+                              'upload_file': gevent.spawn(self.upload_file),
+                              'update_file': gevent.spawn(self.update_file)}
 
     def run(self):
         logger.info('Start EDR API Data Bridge', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
