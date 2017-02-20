@@ -12,13 +12,12 @@ class EdrClient(object):
                         "Authorization": "Token {token}".format(token=self.token)}
         self.timeout = timeout
 
-    def get_subject(self, code):
+    def get_subject(self, param, code):
         """
         Send request to EDR using EDRPOU (physical entity-entrepreneur) code or passport.
         In response we except list of subjects with unique id in each subject.
         List mostly contains 1 subject, but occasionally includes 2 or none.
         """
-        param = 'code' if code.isdigit() and (len(code) == 8 or len(code) == 10) else 'passport'  # find out we accept edrpou or passport code
         url = '{url}?{param}={code}'.format(url=self.url, param=param, code=code)
         response = requests.get(url=url, headers=self.headers, timeout=self.timeout)
 
