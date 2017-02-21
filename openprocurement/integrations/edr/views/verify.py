@@ -26,7 +26,7 @@ class VerifyResource(APIResource):
         if not code:
             passport = self.request.params.get('passport', '').encode('utf-8')
             if not passport:
-                self.request.errors.add('body', 'data', [{u'message': u'Need pass code or passport'}])
+                self.request.errors.add('body', 'data', [{u'message': u'Need pass code or passport as GET params.'}])
                 self.request.errors.status = 403
                 return
             details = EDRDetails('passport', passport)

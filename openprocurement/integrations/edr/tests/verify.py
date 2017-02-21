@@ -190,4 +190,4 @@ class TestVerify(BaseWebTest):
         self.assertEqual(response.status, '403 Forbidden')
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.json['errors'][0]['description'],
-                         [{u'message': u'Need pass code or passport'}])
+                         [{u'message': u'Need pass code or passport as GET params.'}])
