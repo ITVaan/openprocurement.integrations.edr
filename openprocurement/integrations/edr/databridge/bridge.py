@@ -113,8 +113,7 @@ class EdrDataBridge(object):
                 for name, job in self.jobs.items():
                     if job.dead:
                         logger.warning('Restarting {} worker'.format(name),
-                                       extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_WORKER},
-                                                             params={"TENDER_ID": tender_data.tender_id}))
+                                       extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_WORKER}))
                         self.jobs[name] = gevent.spawn(getattr(self, name))
         except KeyboardInterrupt:
             logger.info('Exiting...')

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from gevent import monkey
+from munch import munchify
 monkey.patch_all()
 
 try:
@@ -13,7 +14,7 @@ import gevent
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_START, DATABRIDGE_SUCCESS_UPLOAD_FILE)
-from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id, Data, create_file
+from openprocurement.integrations.edr.databridge.utils import journal_context, Data, create_file
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 
@@ -41,13 +42,15 @@ class UploadFile(object):
         while True:
             tender_data = self.upload_file_queue.get()
             try:
-                tender = self.tenders_sync_client.get_tender(
-                    tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
                 # create patch request to award/qualification with document to upload
                 if tender_data.item_name == 'awards':
-                    document = self.client.upload_award_document(create_file(tender_data.file_content), tender, tender_data.item_id)
+                    document = self.client.upload_award_document(create_file(tender_data.file_content),
+                                                                 munchify({'data': {'id': tender_data.tender_id}}),
+                                                                 tender_data.item_id)
                 else:
-                    document = self.client.upload_qualification_document(create_file(tender_data.file_content), tender, tender_data.item_id)
+                    document = self.client.upload_qualification_document(create_file(tender_data.file_content),
+                                                                         munchify({'data': {'id': tender_data.tender_id}}),
+                                                                         tender_data.item_id)
             except Exception as e:
                 logger.info('Exception while uploading file to tender {} {} {}. Message: {}'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
@@ -65,12 +68,10 @@ class UploadFile(object):
         while True:
             tender_data = self.update_file_queue.get()
             try:
-                tender = self.tenders_sync_client.get_tender(
-                    tender_data.tender_id, extra_headers={'X-Client-Request-ID': generate_req_id()})
                 self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
                     self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
                     tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}},
-                                                              headers={'X-Access-Token': getattr(getattr(tender, 'access', ''), 'token', '')})
+                                                              headers={'X-Access-Token': getattr(getattr(munchify({'data': {'id': tender_data.tender_id}}), 'access', ''), 'token', '')})
             except Exception as e:
                 logger.info('Exception while updating file to tender {} {} {}. Message: {}'.format(
                                 tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))

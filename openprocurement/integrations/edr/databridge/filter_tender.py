@@ -88,7 +88,7 @@ class FilterTenders(object):
                                             extra=journal_context(params={"TENDER_ID": tender['id']}))
 
     def run(self):
-        logger.info('Start Filter Tenders Bridge', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
+        logger.info('Start Filter Tenders', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
         self.job = gevent.spawn(self.prepare_data)
 
         try:

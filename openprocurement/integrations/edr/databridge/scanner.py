@@ -65,7 +65,7 @@ class Scanner(object):
             for tender in tenders:
                 if (tender['status'] == "active.qualification" and
                     tender['procurementMethodType'] in self.qualification_procurementMethodType) \
-                    or (tender['status'] == 'йactive.pre-qualification' and
+                    or (tender['status'] == 'active.pre-qualification' and
                         tender['procurementMethodType'] in self.pre_qualification_procurementMethodType):
                     yield tender
                 else:
