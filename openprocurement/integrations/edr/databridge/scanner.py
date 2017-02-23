@@ -6,7 +6,7 @@ import gevent
 from uuid import uuid4
 from retrying import retry
 
-from openprocurement.integrations.edr.journal_msg_ids import (
+from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_INFO, DATABRIDGE_SYNC_SLEEP, DATABRIDGE_TENDER_PROCESS,
     DATABRIDGE_WORKER_DIED, DATABRIDGE_RESTART, DATABRIDGE_START)
 from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id

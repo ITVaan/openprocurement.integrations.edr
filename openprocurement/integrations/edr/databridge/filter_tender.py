@@ -16,7 +16,7 @@ import gevent
 
 from yaml import load
 
-from openprocurement.integrations.edr.journal_msg_ids import (
+from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_TENDER_PROCESS, DATABRIDGE_START)
 from openprocurement.integrations.edr.databridge.utils import generate_req_id, journal_context
 from openprocurement.integrations.edr.databridge.utils import Data

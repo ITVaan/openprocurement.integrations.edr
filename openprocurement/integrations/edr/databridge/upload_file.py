@@ -11,7 +11,7 @@ except ImportError:
 import logging.config
 import gevent
 
-from openprocurement.integrations.edr.journal_msg_ids import (
+from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_START, DATABRIDGE_SUCCESS_UPLOAD_FILE)
 from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id, Data, create_file
 
