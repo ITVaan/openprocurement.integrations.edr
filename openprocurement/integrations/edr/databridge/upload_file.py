@@ -28,9 +28,10 @@ class UploadFile(object):
     qualification_procurementMethodType = ('aboveThresholdUA', 'aboveThresholdUA.defense', 'aboveThresholdEU', 'competitiveDialogueUA.stage2', 'competitiveDialogueEU.stage2')
     required_fields = ['names', 'founders', 'management', 'activity_kinds', 'address', 'bankruptcy']
 
-    def __init__(self, tenders_sync_client, client, upload_file_queue, update_file_queue, delay=15):
+    def __init__(self, tenders_sync_client, client, upload_file_queue, update_file_queue, processing_items, delay=15):
         super(UploadFile, self).__init__()
         self.delay = delay
+        self.processing_items = processing_items
 
         # init clients
         self.tenders_sync_client = tenders_sync_client
@@ -118,6 +119,8 @@ class UploadFile(object):
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
                                           params={"TENDER_ID": tender_data.tender_id}))
+                del self.processing_items[tender_data.item_id]
+                logger.info('after del {}'.format(self.processing_items))
 
     def retry_update_file(self):
         while True:
@@ -133,6 +136,7 @@ class UploadFile(object):
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
                                           params={"TENDER_ID": tender_data.tender_id}))
+                del self.processing_items[tender_data.item_id]
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_update_file(self, tender_data):
