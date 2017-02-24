@@ -11,8 +11,9 @@ id_passport_len = 9
 Data = namedtuple('Data', [
     'tender_id',  # tender ID
     'item_id',  # qualification or award ID
-    'code',  # EDRPOU
+    'code',  # EDRPOU, IPN or passport
     'item_name',  # "qualifications" or "awards"
+    'subject_ids',  # list of unique identifications of the subject; returns by EDR
     'file_content'  # details for file
 ])
 

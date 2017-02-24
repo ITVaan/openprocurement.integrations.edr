@@ -15,7 +15,9 @@ import logging.config
 import gevent
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
-    DATABRIDGE_START, DATABRIDGE_SUCCESS_UPLOAD_FILE)
+    DATABRIDGE_SUCCESS_UPLOAD_FILE, DATABRIDGE_UNSUCCESS_UPLOAD_FILE,
+    DATABRIDGE_UNSUCCESS_RETRY_UPLOAD_FILE, DATABRIDGE_SUCCESS_UPDATE_FILE, DATABRIDGE_UNSUCCESS_UPDATE_FILE,
+    DATABRIDGE_UNSUCCESS_RETRY_UPDATE_FILE, DATABRIDGE_RESTART_UPLOAD, DATABRIDGE_START_UPLOAD, DATABRIDGE_RESTART_UPDATE)
 from openprocurement.integrations.edr.databridge.utils import journal_context, Data, create_file
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
@@ -60,11 +62,15 @@ class UploadFile(object):
                                                                          tender_data.item_id)
             except Exception as e:
                 logger.info('Exception while uploading file to tender {} {} {}. Message: {}'.format(
-                    tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
+                    tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message),
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_UNSUCCESS_UPLOAD_FILE},
+                                            params={"TENDER_ID": tender_data.tender_id,
+                                                    "ITEM_ID": tender_data.item_id}))
+                logger.exception(e)
                 self.retry_upload_file_queue.put(tender_data)
             else:
-                data = Data(tender_data.tender_id, tender_data.item_id,
-                            tender_data.code, tender_data.item_name, {'document_id': document['data']['id']})
+                data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
+                            tender_data.item_name, tender_data.subject_ids, {'document_id': document['data']['id']})
                 self.update_file_queue.put(data)
                 logger.info('Successfully uploaded file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -78,12 +84,15 @@ class UploadFile(object):
                 # create patch request to award/qualification with document to upload
                 document = self.client_upload_file(tender_data)
             except Exception as e:
-                logger.info('Exception while uploading file to tender {} {} {}. Message: {}'.format(
-                    tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
+                logger.info('Exception while retry uploading file to tender {} {} {}. Message: {}'.format(
+                    tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message),
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_UNSUCCESS_RETRY_UPLOAD_FILE},
+                                            params={"TENDER_ID": tender_data.tender_id,
+                                                    "ITEM_ID": tender_data.item_id}))
                 self.retry_upload_file_queue.put(tender_data)
             else:
-                data = Data(tender_data.tender_id, tender_data.item_id,
-                            tender_data.code, tender_data.item_name, {'document_id': document['data']['id']})
+                data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
+                            tender_data.item_name, tender_data.subject_ids, {'document_id': document['data']['id']})
                 self.update_file_queue.put(data)
                 logger.info('Successfully uploaded file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -92,15 +101,19 @@ class UploadFile(object):
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_upload_file(self, tender_data):
-        if tender_data.item_name == 'awards':
-            document = self.client.upload_award_document(create_file(tender_data.file_content),
-                                                         munchify({'data': {'id': tender_data.tender_id}}),
-                                                         tender_data.item_id)
+        try:
+            if tender_data.item_name == 'awards':
+                document = self.client.upload_award_document(create_file(tender_data.file_content),
+                                                             munchify({'data': {'id': tender_data.tender_id}}),
+                                                             tender_data.item_id)
+            else:
+                document = self.client.upload_qualification_document(create_file(tender_data.file_content),
+                                                                     munchify({'data': {'id': tender_data.tender_id}}),
+                                                                     tender_data.item_id)
+        except Exception as e:
+            raise e
         else:
-            document = self.client.upload_qualification_document(create_file(tender_data.file_content),
-                                                                 munchify({'data': {'id': tender_data.tender_id}}),
-                                                                 tender_data.item_id)
-        return document
+            return document
 
     def update_file(self):
         while True:
@@ -108,19 +121,19 @@ class UploadFile(object):
             try:
                 self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
                     self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
-                    tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}},
-                                                              headers={'X-Access-Token': getattr(getattr(munchify({'data': {'id': tender_data.tender_id}}), 'access', ''), 'token', '')})
+                    tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}})
             except Exception as e:
                 logger.info('Exception while updating file to tender {} {} {}. Message: {}'.format(
-                                tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
+                                tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message),
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_UNSUCCESS_UPDATE_FILE},
+                                          params={"TENDER_ID": tender_data.tender_id}))
                 self.retry_update_file_queue.put(tender_data)
             else:
                 logger.info('Successfully updated file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPDATE_FILE},
                                           params={"TENDER_ID": tender_data.tender_id}))
                 del self.processing_items[tender_data.item_id]
-                logger.info('after del {}'.format(self.processing_items))
 
     def retry_update_file(self):
         while True:
@@ -128,37 +141,41 @@ class UploadFile(object):
             try:
                 self.client_update_file(tender_data)
             except Exception as e:
-                logger.info('Exception while updating file to tender {} {} {}. Message: {}'.format(
-                                tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message))
+                logger.info('Exception while retry updating file to tender {} {} {}. Message: {}'.format(
+                                tender_data.tender_id, tender_data.item_name, tender_data.item_id, e.message),
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_UNSUCCESS_RETRY_UPDATE_FILE},
+                                          params={"TENDER_ID": tender_data.tender_id}))
+                logger.exception(e)
                 self.retry_update_file_queue.put(tender_data)
             else:
                 logger.info('Successfully updated file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPLOAD_FILE},
+                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPDATE_FILE},
                                           params={"TENDER_ID": tender_data.tender_id}))
                 del self.processing_items[tender_data.item_id]
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_update_file(self, tender_data):
-        self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
-            self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
-            tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}},
-            headers={'X-Access-Token': getattr(getattr(munchify({'data': {'id': tender_data.tender_id}}), 'access', ''),
-                                               'token', '')})
+        try:
+            self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
+                self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
+                tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}})
+        except Exception as e:
+            raise e
 
     def run(self):
-        logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
+        logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_UPLOAD}, {}))
         upload_file = gevent.spawn(self.upload_file)
         update_file = gevent.spawn(self.update_file)
         try:
             while True:
                 gevent.sleep(self.delay)
                 if upload_file.dead:
-                    logger.warning("UploadFile worker upload_file dead try restart")
+                    logger.warning("UploadFile worker upload_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPLOAD}, {}))
                     upload_file = gevent.spawn(self.upload_file)
                     logger.info("UploadFile worker get_subject_id is up")
                 if update_file.dead:
-                    logger.warning("UploadFile worker update_file dead try restart")
+                    logger.warning("UploadFile worker update_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPDATE}, {}))
                     update_file = gevent.spawn(self.update_file)
                     logger.info("UploadFile worker get_subject_id is up")
         except Exception as e:

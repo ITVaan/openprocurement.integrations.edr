@@ -12,7 +12,8 @@ import logging.config
 import gevent
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
-    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_TENDER_PROCESS, DATABRIDGE_START)
+    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_TENDER_PROCESS, DATABRIDGE_START_FILTER_TENDER,
+    DATABRIDGE_PROCESSING_TENDER, DATABRIDGE_RESTART_FILTER_TENDER)
 from openprocurement.integrations.edr.databridge.utils import generate_req_id, journal_context
 from openprocurement.integrations.edr.databridge.utils import Data
 
@@ -60,7 +61,7 @@ class FilterTenders(object):
                                                                  if document.get('documentType') == 'registerExtract']:
                             for supplier in award['suppliers']:
                                 if self.check_processing_item(award['id'], tender['id']):
-                                    tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None)
+                                    tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None, None)
                                     self.data_queue.put(tender_data)
                         else:
                             logger.info('Tender {} award {} is not in status pending or award has already document '
@@ -74,7 +75,7 @@ class FilterTenders(object):
                             appropriate_bid = [b for b in tender['bids'] if b['id'] == qualification['bidID']][0]
                             if self.check_processing_item(qualification['id'], tender['id']):
                                 tender_data = Data(tender['id'], qualification['id'],
-                                                   appropriate_bid['tenderers'][0]['identifier']['id'], 'qualifications', None)
+                                                   appropriate_bid['tenderers'][0]['identifier']['id'], 'qualifications', None, None)
                                 self.data_queue.put(tender_data)
                                 logger.info('Processing tender {} bid {}'.format(tender['id'], appropriate_bid['id']),
                                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_PROCESS},
@@ -87,19 +88,21 @@ class FilterTenders(object):
 
     def check_processing_item(self, item_id, tender_id):
         if self.processing_items.get(item_id) and self.processing_items[item_id] == tender_id:
+            logger.info('Try to add tender {} item {} to queue while it is already in process.'.format(tender_id, item_id),
+                        extra=journal_context({"MESSAGE_ID": DATABRIDGE_PROCESSING_TENDER}))
             return False
         self.processing_items[item_id] = tender_id
         return True
 
     def run(self):
-        logger.info('Start Filter Tenders', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
+        logger.info('Start Filter Tenders', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_FILTER_TENDER}, {}))
         self.job = gevent.spawn(self.prepare_data)
 
         try:
             while True:
                 gevent.sleep(self.delay)
                 if self.job.dead:
-                    logger.warning("filter Tenders job die try restart.")
+                    logger.warning("Filter tender job die. Try to restart.",  extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_FILTER_TENDER}, {}))
                     self.job = gevent.spawn(self.prepare_data)
                     logger.info("filter tenders job restarted.")
         except Exception as e:
