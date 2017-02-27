@@ -8,7 +8,7 @@ from retrying import retry
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_INFO, DATABRIDGE_SYNC_SLEEP, DATABRIDGE_TENDER_PROCESS,
-    DATABRIDGE_WORKER_DIED, DATABRIDGE_RESTART, DATABRIDGE_START)
+    DATABRIDGE_WORKER_DIED, DATABRIDGE_RESTART, DATABRIDGE_START_SCANNER)
 from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
@@ -65,7 +65,7 @@ class Scanner(object):
             for tender in tenders:
                 if (tender['status'] == "active.qualification" and
                     tender['procurementMethodType'] in self.qualification_procurementMethodType) \
-                    or (tender['status'] == 'йactive.pre-qualification' and
+                    or (tender['status'] == 'active.pre-qualification' and
                         tender['procurementMethodType'] in self.pre_qualification_procurementMethodType):
                     yield tender
                 else:
@@ -120,7 +120,7 @@ class Scanner(object):
         self._start_synchronization_workers()
 
     def run(self):
-        logger.info('Start Scanner', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
+        logger.info('Start Scanner', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_SCANNER}, {}))
         self._start_synchronization_workers()
         backward_worker, forward_worker = self.jobs
 

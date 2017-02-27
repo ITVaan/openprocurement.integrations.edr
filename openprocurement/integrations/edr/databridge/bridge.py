@@ -63,6 +63,9 @@ class EdrDataBridge(object):
 
         self.until_too_many_requests_event.set()
 
+        # dictionary with processing awards/qualifications
+        self.processing_items = {}
+
         # Workers
         self.scanner = Scanner(tenders_sync_client=self.tenders_sync_client,
                                filtered_tenders_queue=self.filtered_tenders_queue,
@@ -71,6 +74,7 @@ class EdrDataBridge(object):
         self.filter_tender = FilterTenders(tenders_sync_client=self.tenders_sync_client,
                                            filtered_tenders_queue=self.filtered_tenders_queue,
                                            data_queue=self.data_queue,
+                                           processing_items=self.processing_items,
                                            delay=self.delay)
 
         self.edr_handler = EdrHandler(edrApiClient=self.edrApiClient,
@@ -83,6 +87,7 @@ class EdrDataBridge(object):
                                       client=self.client,
                                       upload_file_queue=self.upload_file_queue,
                                       update_file_queue=self.update_file_queue,
+                                      processing_items=self.processing_items,
                                       delay=self.delay)
 
     def config_get(self, name):
@@ -113,8 +118,7 @@ class EdrDataBridge(object):
                 for name, job in self.jobs.items():
                     if job.dead:
                         logger.warning('Restarting {} worker'.format(name),
-                                       extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_WORKER},
-                                                             params={"TENDER_ID": tender_data.tender_id}))
+                                       extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_WORKER}))
                         self.jobs[name] = gevent.spawn(getattr(self, name))
         except KeyboardInterrupt:
             logger.info('Exiting...')
