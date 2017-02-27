@@ -101,19 +101,15 @@ class UploadFile(object):
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_upload_file(self, tender_data):
-        try:
-            if tender_data.item_name == 'awards':
-                document = self.client.upload_award_document(create_file(tender_data.file_content),
-                                                             munchify({'data': {'id': tender_data.tender_id}}),
-                                                             tender_data.item_id)
-            else:
-                document = self.client.upload_qualification_document(create_file(tender_data.file_content),
-                                                                     munchify({'data': {'id': tender_data.tender_id}}),
-                                                                     tender_data.item_id)
-        except Exception as e:
-            raise e
+        if tender_data.item_name == 'awards':
+            document = self.client.upload_award_document(create_file(tender_data.file_content),
+                                                         munchify({'data': {'id': tender_data.tender_id}}),
+                                                         tender_data.item_id)
         else:
-            return document
+            document = self.client.upload_qualification_document(create_file(tender_data.file_content),
+                                                                 munchify({'data': {'id': tender_data.tender_id}}),
+                                                                 tender_data.item_id)
+        return document
 
     def update_file(self):
         while True:
@@ -133,6 +129,7 @@ class UploadFile(object):
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPDATE_FILE},
                                           params={"TENDER_ID": tender_data.tender_id}))
+                # delete current tender after successful upload/update file ( to avoid reloading file)
                 del self.processing_items[tender_data.item_id]
 
     def retry_update_file(self):
@@ -152,16 +149,14 @@ class UploadFile(object):
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_UPDATE_FILE},
                                           params={"TENDER_ID": tender_data.tender_id}))
+                # delete current tender after successful upload/update file ( to avoid reloading file)
                 del self.processing_items[tender_data.item_id]
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_update_file(self, tender_data):
-        try:
-            self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
-                self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
-                tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}})
-        except Exception as e:
-            raise e
+        self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
+            self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
+            tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}})
 
     def run(self):
         logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_UPLOAD}, {}))

@@ -26,6 +26,7 @@ class EdrHandler(object):
     """ Edr API Data Bridge """
 
     required_fields = ['names', 'founders', 'management', 'activity_kinds', 'address', 'bankruptcy']
+    error_details = {'error': 'Couldn\'t find this code in EDR.'}
 
     def __init__(self, edrApiClient, data_queue, subjects_queue, upload_file_queue, delay=15):
         super(EdrHandler, self).__init__()
@@ -59,13 +60,13 @@ class EdrHandler(object):
             response = self.edrApiClient.get_subject(validate_param(tender_data.code), tender_data.code)
             if response.status_code == 200:
                 if not response.json():
-                    details = {'error': 'Couldn\'t find this code in EDR.'}
                     logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
                                 extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
                                                       params={"TENDER_ID": tender_data.tender_id}))
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                                tender_data.item_name, response.json(), details)
+                                tender_data.item_name, response.json(), self.error_details)
                     self.upload_file_queue.put(data)
+                    continue
                 # Create new Data object. Write to Data.code list of subject ids from EDR.
                 # List because EDR can return 0, 1 or 2 values to our reques
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
@@ -99,15 +100,14 @@ class EdrHandler(object):
             gevent.sleep(0)
         else:
             if not response.json():
-                details = {'error': 'Couldn\'t find this code in EDR.'}
                 logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
                                                   params={"TENDER_ID": tender_data.tender_id}))
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                            tender_data.item_name, response.json(), details)
+                            tender_data.item_name, response.json(), self.error_details)
                 self.upload_file_queue.put(data)
             # Create new Data object. Write to Data.code list of subject ids from EDR.
-            # List because EDR can return 0, 1 or 2 values to our reques
+            # List because EDR can return 0, 1 or 2 values to our request
             data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                         tender_data.item_name, [subject['id'] for subject in response.json()], None)
             self.subjects_queue.put(data)
