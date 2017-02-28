@@ -105,6 +105,7 @@ class Scanner(object):
         except Exception as e:
             logger.warning('Backward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
             logger.exception(e)
+            raise e
         else:
             logger.info('Backward data sync finished.')
 
