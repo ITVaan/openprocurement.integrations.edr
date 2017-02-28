@@ -6,7 +6,7 @@ Tutorial
 Basic request
 ---------------------
 
-In order to get information from EDR by code EDRPOU you need to make a request to `/verify` endpoint, passing given code in url:
+In order to get information from EDR by code EDRPOU you need to make a request to `/verify` endpoint, passing code as GET parameter:
 
 .. include:: tutorial/basic_request.http
    :code:
@@ -30,7 +30,7 @@ If you need to obtain information about individual entrepreneurs then send a req
 Request with number of passport
 ---------------------
 
-If due to religious beliefs a person refused to get IPN code, then you need to pass a series and number of passport in the url , view like `АБ123456`:
+If due to religious beliefs a person refused to get IPN code, then you need to pass a series and number of passport, view like `АБ123456`:
 
 .. include:: tutorial/passport.http
    :code:
