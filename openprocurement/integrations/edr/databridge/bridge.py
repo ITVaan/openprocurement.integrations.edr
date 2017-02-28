@@ -83,8 +83,7 @@ class EdrDataBridge(object):
                                       upload_file_queue=self.upload_file_queue,
                                       delay=self.delay)
 
-        self.upload_file = UploadFile(tenders_sync_client=self.tenders_sync_client,
-                                      client=self.client,
+        self.upload_file = UploadFile(client=self.client,
                                       upload_file_queue=self.upload_file_queue,
                                       update_file_queue=self.update_file_queue,
                                       processing_items=self.processing_items,
