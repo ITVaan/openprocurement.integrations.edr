@@ -109,10 +109,10 @@ class EdrDataBridge(object):
             while True:
                 gevent.sleep(self.delay)
                 if counter == 20:
-                    logger.info('Current state: filtered tenders {}; Data queue {}; Subjects {}; Upload file {}; Update file {}'.format(
-                        self.filtered_tenders_queue.qsize(),
-                        self.data_queue.qsize(),
-                        self.subjects_queue.qsize(),
+                    logger.info('Current state: filtered tenders {}; edrpou codes queue {}; edr ids queue {}; Upload file {}; Update file {}'.format(
+                        self.filtered_tender_ids_queue.qsize(),
+                        self.edrpou_codes_queue.qsize(),
+                        self.edr_ids_queue.qsize(),
                         self.upload_file_queue.qsize(),
                         self.update_file_queue.qsize()))
                     counter = 0
