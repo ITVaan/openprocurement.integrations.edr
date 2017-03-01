@@ -47,6 +47,8 @@ class UploadFile(object):
         self.retry_update_file_queue = Queue(maxsize=500)
 
     def upload_file(self):
+        """Get data from upload_file_queue; Create file of the Data.file_content data; If upload successful put Data
+        object to update_file_queue, otherwise put Data to retry_upload_file_queue."""
         while True:
             tender_data = self.upload_file_queue.get()
             try:
@@ -69,7 +71,7 @@ class UploadFile(object):
                 self.retry_upload_file_queue.put(tender_data)
             else:
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                            tender_data.item_name, tender_data.subject_ids, {'document_id': document['data']['id']})
+                            tender_data.item_name, tender_data.edr_ids, {'document_id': document['data']['id']})
                 self.update_file_queue.put(data)
                 logger.info('Successfully uploaded file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -77,6 +79,8 @@ class UploadFile(object):
                                           params={"TENDER_ID": tender_data.tender_id}))
 
     def retry_upload_file(self):
+        """Get data from retry_upload_file_queue; If upload were successful put Data obj to update_file_queue, otherwise
+         put Data obj back to retry_upload_file_queue"""
         while True:
             tender_data = self.retry_upload_file_queue.get()
             try:
@@ -91,7 +95,7 @@ class UploadFile(object):
                 self.retry_upload_file_queue.put(tender_data)
             else:
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                            tender_data.item_name, tender_data.subject_ids, {'document_id': document['data']['id']})
+                            tender_data.item_name, tender_data.edr_ids, {'document_id': document['data']['id']})
                 self.update_file_queue.put(data)
                 logger.info('Successfully uploaded file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -100,6 +104,7 @@ class UploadFile(object):
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_upload_file(self, tender_data):
+        """Process upload request for retry queue objects."""
         if tender_data.item_name == 'awards':
             document = self.client.upload_award_document(create_file(tender_data.file_content),
                                                          munchify({'data': {'id': tender_data.tender_id}}),
@@ -111,6 +116,9 @@ class UploadFile(object):
         return document
 
     def update_file(self):
+        """Get data from update_file_queue; Update field documentType for tender_data.file_content['document_id'];
+        If update were unsuccessful put Data object to retry_update_file_queue, otherwise delete given
+        award/qualification from processing_items."""
         while True:
             tender_data = self.update_file_queue.get()
             try:
@@ -132,6 +140,7 @@ class UploadFile(object):
                 del self.processing_items[tender_data.item_id]
 
     def retry_update_file(self):
+        """Get data from retry_update_file_queue; If update was unsuccessful put Data obj back to retry_update_file_queue"""
         while True:
             tender_data = self.retry_update_file_queue.get()
             try:
@@ -153,6 +162,7 @@ class UploadFile(object):
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_update_file(self, tender_data):
+        """Process update request for retry queue objects."""
         self.client._patch_resource_item('{}/{}/{}/{}/documents/{}'.format(
             self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
             tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}})
@@ -167,11 +177,11 @@ class UploadFile(object):
                 if upload_file.dead:
                     logger.warning("UploadFile worker upload_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPLOAD}, {}))
                     upload_file = gevent.spawn(self.upload_file)
-                    logger.info("UploadFile worker get_subject_id is up")
+                    logger.info("UploadFile worker get_edr_id is up")
                 if update_file.dead:
                     logger.warning("UploadFile worker update_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPDATE}, {}))
                     update_file = gevent.spawn(self.update_file)
-                    logger.info("UploadFile worker get_subject_id is up")
+                    logger.info("UploadFile worker get_edr_id is up")
         except Exception as e:
             logger.error(e)
             upload_file.kill(timeout=5)
