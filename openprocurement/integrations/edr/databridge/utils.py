@@ -13,7 +13,7 @@ Data = namedtuple('Data', [
     'item_id',  # qualification or award ID
     'code',  # EDRPOU, IPN or passport
     'item_name',  # "qualifications" or "awards"
-    'edr_ids',  # list of unique identifications of the subject; returns by EDR
+    'edr_ids',  # list of unique identifications in EDR
     'file_content'  # details for file
 ])
 

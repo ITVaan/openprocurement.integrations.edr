@@ -50,7 +50,6 @@ class EdrHandler(object):
 
         self.delay = delay
 
-    # Block  of methods for first request to EDR
     def get_edr_id(self):
         """Get data from edrpou_codes_queue; make request to EDR Api, passing EDRPOU (IPN, passport); Received ids is
         put into Data.edr_ids variable; Data variable placed to edr_ids_queue."""
@@ -128,7 +127,6 @@ class EdrHandler(object):
             raise Exception('Unsuccessful retry request to EDR.')
         return response
 
-    # Block  of methods for second request to EDR for more detailed info
     def get_edr_details(self):
         """Get data from edr_ids_queue; make request to EDR Api for detailed info; Required fields is put to
         Data.file_content variable, Data object is put to upload_file_queue."""
@@ -194,7 +192,6 @@ class EdrHandler(object):
         if response.status_code != 200:
             raise Exception('Unsuccessful retry request to EDR.')
         return response
-
 
     def handle_status_response(self, response, tender_id):
         """Process unsuccessful request"""
