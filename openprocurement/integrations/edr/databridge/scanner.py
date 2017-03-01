@@ -20,7 +20,7 @@ class Scanner(object):
     pre_qualification_procurementMethodType = ('aboveThresholdEU', 'competitiveDialogueUA', 'competitiveDialogueEU')
     qualification_procurementMethodType = ('aboveThresholdUA', 'aboveThresholdUA.defense', 'aboveThresholdEU', 'competitiveDialogueUA.stage2', 'competitiveDialogueEU.stage2')
 
-    def __init__(self, tenders_sync_client, filtered_tenders_queue, delay=15):
+    def __init__(self, tenders_sync_client, filtered_tender_ids_queue, delay=15):
         super(Scanner, self).__init__()
 
         self.delay = delay
@@ -28,7 +28,7 @@ class Scanner(object):
         self.tenders_sync_client = tenders_sync_client
 
         # init queues for workers
-        self.filtered_tenders_queue = filtered_tenders_queue
+        self.filtered_tender_ids_queue = filtered_tender_ids_queue
 
         # blockers
         self.initialization_event = gevent.event.Event()
@@ -86,7 +86,7 @@ class Scanner(object):
                 logger.info('Forward sync: Put tender {} to process...'.format(tender['id']),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_PROCESS},
                                                   {"TENDER_ID": tender['id']}))
-                self.filtered_tenders_queue.put(tender['id'])
+                self.filtered_tender_ids_queue.put(tender['id'])
         except Exception as e:
             logger.warning('Forward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
             logger.exception(e)
@@ -101,7 +101,7 @@ class Scanner(object):
                 logger.info('Backward sync: Put tender {} to process...'.format(tender['id']),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_PROCESS},
                                                   {"TENDER_ID": tender['id']}))
-                self.filtered_tenders_queue.put(tender['id'])
+                self.filtered_tender_ids_queue.put(tender['id'])
         except Exception as e:
             logger.warning('Backward worker died!', extra=journal_context({"MESSAGE_ID": DATABRIDGE_WORKER_DIED}, {}))
             logger.exception(e)

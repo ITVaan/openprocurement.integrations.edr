@@ -51,10 +51,13 @@ class EdrDataBridge(object):
                                       port=self.config_get('edr_api_port'))
 
         # init queues for workers
-        self.filtered_tenders_queue = Queue(maxsize=buffers_size)
-        self.data_queue = Queue(maxsize=buffers_size)
-        self.subjects_queue = Queue(maxsize=buffers_size)
-        self.upload_file_queue = Queue(maxsize=buffers_size)
+        self.filtered_tender_ids_queue = Queue(maxsize=buffers_size)  # queue of tender IDs with appropriate status
+        self.edrpou_codes_queue = Queue(maxsize=buffers_size)  # queue with edrpou codes (Data objects stored in it)
+        # edr_ids_queue - queue with unique identification of the edr object (Data.edr_ids in Data object),
+        # received from EDR Api. Later used to make second request to EDR to get detailed info
+        self.edr_ids_queue = Queue(maxsize=buffers_size)
+        self.upload_file_queue = Queue(maxsize=buffers_size)  # queue with detailed info from EDR (Data.file_content)
+        # update_file_queue - queue with document_id (Data.file_content) to update documentType field in file
         self.update_file_queue = Queue(maxsize=buffers_size)
 
         # blockers
@@ -68,18 +71,18 @@ class EdrDataBridge(object):
 
         # Workers
         self.scanner = Scanner(tenders_sync_client=self.tenders_sync_client,
-                               filtered_tenders_queue=self.filtered_tenders_queue,
+                               filtered_tender_ids_queue=self.filtered_tender_ids_queue,
                                delay=self.delay)
 
         self.filter_tender = FilterTenders(tenders_sync_client=self.tenders_sync_client,
-                                           filtered_tenders_queue=self.filtered_tenders_queue,
-                                           data_queue=self.data_queue,
+                                           filtered_tender_ids_queue=self.filtered_tender_ids_queue,
+                                           edrpou_codes_queue=self.edrpou_codes_queue,
                                            processing_items=self.processing_items,
                                            delay=self.delay)
 
         self.edr_handler = EdrHandler(edrApiClient=self.edrApiClient,
-                                      data_queue=self.data_queue,
-                                      subjects_queue=self.subjects_queue,
+                                      edrpou_codes_queue=self.edrpou_codes_queue,
+                                      edr_ids_queue=self.edr_ids_queue,
                                       upload_file_queue=self.upload_file_queue,
                                       delay=self.delay)
 

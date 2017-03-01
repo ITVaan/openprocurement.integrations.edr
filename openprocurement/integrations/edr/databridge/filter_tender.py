@@ -23,7 +23,7 @@ logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 class FilterTenders(object):
     """ Edr API Data Bridge """
 
-    def __init__(self, tenders_sync_client, filtered_tenders_queue, data_queue, processing_items, delay=15):
+    def __init__(self, tenders_sync_client, filtered_tender_ids_queue, edrpou_codes_queue, processing_items, delay=15):
         super(FilterTenders, self).__init__()
 
         self.delay = delay
@@ -31,17 +31,19 @@ class FilterTenders(object):
         self.tenders_sync_client = tenders_sync_client
 
         # init queues for workers
-        self.filtered_tenders_queue = filtered_tenders_queue
-        self.data_queue = data_queue
+        self.filtered_tender_ids_queue = filtered_tender_ids_queue
+        self.edrpou_codes_queue = edrpou_codes_queue
         self.processing_items = processing_items
 
     def prepare_data(self):
+        """Get tender_id from filtered_tender_ids_queue, check award/qualification status, documentType; get
+        identifier's id and put into edrpou_codes_queue."""
         while True:
-            tender_id = self.filtered_tenders_queue.get()
+            tender_id = self.filtered_tender_ids_queue.get()
             try:
                 tender = self.tenders_sync_client.get_tender(tender_id,
                                                              extra_headers={'X-Client-Request-ID': generate_req_id()})['data']
-                logger.info('Get tender {} from filtered_tenders_queue'.format(tender_id),
+                logger.info('Get tender {} from filtered_tender_ids_queue'.format(tender_id),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                             params={"TENDER_ID": tender['id']}))
             except Exception as e:
@@ -50,7 +52,7 @@ class FilterTenders(object):
                 logger.exception(e)
                 logger.info('Put tender {} back to tenders queue'.format(tender_id),
                             extra=journal_context(params={"TENDER_ID": tender['id']}))
-                self.filtered_tenders_queue.put(tender_id)
+                self.filtered_tender_ids_queue.put(tender_id)
             else:
                 if 'awards' in tender:
                     for award in tender['awards']:
@@ -62,7 +64,7 @@ class FilterTenders(object):
                             for supplier in award['suppliers']:
                                 if self.check_processing_item(award['id'], tender['id']):
                                     tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None, None)
-                                    self.data_queue.put(tender_data)
+                                    self.edrpou_codes_queue.put(tender_data)
                         else:
                             logger.info('Tender {} award {} is not in status pending or award has already document '
                                         'with documentType registerExtract.'.format(tender_id, award['id']),
@@ -76,7 +78,7 @@ class FilterTenders(object):
                             if self.check_processing_item(qualification['id'], tender['id']):
                                 tender_data = Data(tender['id'], qualification['id'],
                                                    appropriate_bid['tenderers'][0]['identifier']['id'], 'qualifications', None, None)
-                                self.data_queue.put(tender_data)
+                                self.edrpou_codes_queue.put(tender_data)
                                 logger.info('Processing tender {} bid {}'.format(tender['id'], appropriate_bid['id']),
                                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_PROCESS},
                                                                    params={"TENDER_ID": tender['id']}))
@@ -87,6 +89,7 @@ class FilterTenders(object):
                                             extra=journal_context(params={"TENDER_ID": tender['id']}))
 
     def check_processing_item(self, item_id, tender_id):
+        """Check if current tender_id, item_id is processing"""
         if self.processing_items.get(item_id) and self.processing_items[item_id] == tender_id:
             logger.info('Try to add tender {} item {} to queue while it is already in process.'.format(tender_id, item_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_PROCESSING_TENDER}))
