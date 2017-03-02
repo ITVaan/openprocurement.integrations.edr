@@ -28,7 +28,6 @@ class UploadFile(object):
 
     pre_qualification_procurementMethodType = ('aboveThresholdEU', 'competitiveDialogueUA', 'competitiveDialogueEU')
     qualification_procurementMethodType = ('aboveThresholdUA', 'aboveThresholdUA.defense', 'aboveThresholdEU', 'competitiveDialogueUA.stage2', 'competitiveDialogueEU.stage2')
-    required_fields = ['names', 'founders', 'management', 'activity_kinds', 'address', 'bankruptcy']
 
     def __init__(self, client, upload_file_queue, update_file_queue, processing_items, delay=15):
         super(UploadFile, self).__init__()
