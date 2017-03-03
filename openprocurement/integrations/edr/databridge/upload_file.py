@@ -190,7 +190,7 @@ class UploadFile(Greenlet):
 
         except Exception as e:
             logger.error(e)
-            gevent.killall(self.immortal_jobs, timeout=5)
+            gevent.killall(self.immortal_jobs.values(), timeout=5)
 
     def shutdown(self):
         self.exit = True
