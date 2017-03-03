@@ -24,9 +24,9 @@ logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 
 class EdrHandler(object):
     """ Edr API Data Bridge """
-
-    required_fields = ['names', 'founders', 'management', 'activity_kinds', 'address', 'bankruptcy']
     error_details = {'error': 'Couldn\'t find this code in EDR.'}
+    identification_scheme = u"UA-EDR"
+    activityKind_scheme = u'КВЕД'
 
     def __init__(self, edrApiClient, edrpou_codes_queue, edr_ids_queue, upload_file_queue, delay=15):
         super(EdrHandler, self).__init__()
@@ -49,6 +49,30 @@ class EdrHandler(object):
         self.until_too_many_requests_event.set()
 
         self.delay = delay
+
+    def prepare_data(self, data):
+        additional_activity_kinds = []
+        primary_activity_kind = {}
+        for activity_kind in data.get('activity_kinds', []):
+            if activity_kind.get('is_primary'):
+                primary_activity_kind = {'id': activity_kind.get('code'),
+                                         'scheme': self.activityKind_scheme,
+                                         'description': activity_kind.get('name')}
+            else:
+                additional_activity_kinds.append({'id': activity_kind.get('code'),
+                                                  'scheme': self.activityKind_scheme,
+                                                  'description': activity_kind.get('name')})
+        return {'name': data.get('names').get('short') if data.get('names') else None,
+                'identification': {'scheme': self.identification_scheme,
+                                   'id': data.get('code'),
+                                   'legalName': data.get('names').get('display') if data.get('names') else None},
+                'founders': data.get('founders'),
+                'management': data.get('management'),
+                'activityKind': primary_activity_kind or None,
+                'additionalActivityKinds': additional_activity_kinds or None,
+                'address': {'streetAddress': data.get('address').get('address') if data.get('address') else None,
+                            'postalCode': data.get('address').get('zip') if data.get('address') else None,
+                            'countryName': data.get('address').get('country') if data.get('address') else None}}
 
     def get_edr_id(self):
         """Get data from edrpou_codes_queue; make request to EDR Api, passing EDRPOU (IPN, passport); Received ids is
@@ -141,7 +165,7 @@ class EdrHandler(object):
                 if response.status_code == 200:
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
-                                {key: value for key, value in response.json().items() if key in self.required_fields})
+                                self.prepare_data(response.json()))
                     self.upload_file_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
