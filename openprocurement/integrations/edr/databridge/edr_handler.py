@@ -16,7 +16,7 @@ import gevent
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_RESTART_EDR_HANDLER_GET_ID,
     DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE, DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS,
-    DATABRIDGE_EMPTY_RESPONSE)
+    DATABRIDGE_EMPTY_RESPONSE, DATABRIDGE_RETRY_EDR_HANDLER_GET_ID, DATABRIDGE_RETRY_EDR_HANDLER_GET_DETAILS)
 from openprocurement.integrations.edr.databridge.utils import Data, journal_context, validate_param
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
@@ -241,6 +241,8 @@ class EdrHandler(object):
         logger.info('Start EDR Handler', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_EDR_HANDLER}, {}))
         get_edr_id = gevent.spawn(self.get_edr_id)
         get_edr_details = gevent.spawn(self.get_edr_details)
+        retry_get_edr_id = gevent.spawn(self.retry_get_edr_id)
+        retry_get_edr_details = gevent.spawn(self.retry_get_edr_details)
         try:
             while True:
                 gevent.sleep(self.delay)
@@ -253,7 +255,17 @@ class EdrHandler(object):
                     logger.warning("EDR handler worker get_edr_details dead try restart",
                                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS}, {}))
                     get_edr_details = gevent.spawn(self.get_edr_details)
-                    logger.info("EDR handler worker get_edr_id is up")
+                    logger.info("EDR handler worker get_edr_details is up")
+                if retry_get_edr_id.dead:
+                    logger.warning("EDR handler worker retry_get_edr_id dead try restart",
+                                   extra=journal_context({"MESSAGE_ID": DATABRIDGE_RETRY_EDR_HANDLER_GET_ID}, {}))
+                    retry_get_edr_id = gevent.spawn(self.retry_get_edr_id)
+                    logger.info("EDR handler worker retry_get_edr_id is up")
+                if retry_get_edr_details.dead:
+                    logger.warning("EDR handler worker retry_get_edr_details dead try restart",
+                                   extra=journal_context({"MESSAGE_ID": DATABRIDGE_RETRY_EDR_HANDLER_GET_DETAILS}, {}))
+                    retry_get_edr_details = gevent.spawn(self.retry_get_edr_details)
+                    logger.info("EDR handler worker retry_get_edr_details is up")
         except Exception as e:
             logger.error(e)
             get_edr_details.kill(timeout=5)

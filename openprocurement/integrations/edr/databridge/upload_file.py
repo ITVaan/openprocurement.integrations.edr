@@ -17,7 +17,8 @@ import gevent
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_SUCCESS_UPLOAD_FILE, DATABRIDGE_UNSUCCESS_UPLOAD_FILE,
     DATABRIDGE_UNSUCCESS_RETRY_UPLOAD_FILE, DATABRIDGE_SUCCESS_UPDATE_FILE, DATABRIDGE_UNSUCCESS_UPDATE_FILE,
-    DATABRIDGE_UNSUCCESS_RETRY_UPDATE_FILE, DATABRIDGE_RESTART_UPLOAD, DATABRIDGE_START_UPLOAD, DATABRIDGE_RESTART_UPDATE)
+    DATABRIDGE_UNSUCCESS_RETRY_UPDATE_FILE, DATABRIDGE_RESTART_UPLOAD, DATABRIDGE_START_UPLOAD, DATABRIDGE_RESTART_UPDATE,
+    DATABRIDGE_RESTART_RETRY_UPLOAD, DATABRIDGE_RESTART_RETRY_UPDATE)
 from openprocurement.integrations.edr.databridge.utils import journal_context, Data, create_file
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
@@ -170,17 +171,28 @@ class UploadFile(object):
         logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_UPLOAD}, {}))
         upload_file = gevent.spawn(self.upload_file)
         update_file = gevent.spawn(self.update_file)
+        retry_upload_file = gevent.spawn(self.retry_upload_file)
+        retry_update_file = gevent.spawn(self.retry_update_file)
         try:
             while True:
                 gevent.sleep(self.delay)
                 if upload_file.dead:
-                    logger.warning("UploadFile worker upload_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPLOAD}, {}))
+                    logger.warning("upload_file worker dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPLOAD}, {}))
                     upload_file = gevent.spawn(self.upload_file)
-                    logger.info("UploadFile worker get_edr_id is up")
+                    logger.info("upload_file worker get_edr_id is up")
                 if update_file.dead:
-                    logger.warning("UploadFile worker update_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPDATE}, {}))
+                    logger.warning("update_file worker dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPDATE}, {}))
                     update_file = gevent.spawn(self.update_file)
-                    logger.info("UploadFile worker get_edr_id is up")
+                    logger.info("update_file worker get_edr_id is up")
+                if retry_upload_file.dead:
+                    logger.warning("retry_upload_file worker dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_RETRY_UPLOAD}, {}))
+                    retry_upload_file = gevent.spawn(self.retry_upload_file)
+                    logger.info("retry_upload_file worker get_edr_id is up")
+                if retry_update_file.dead:
+                    logger.warning("RetryUpdateFile worker dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_RETRY_UPDATE}, {}))
+                    retry_update_file = gevent.spawn(self.retry_update_file)
+                    logger.info("retry_upload_file worker get_edr_id is up")
+
         except Exception as e:
             logger.error(e)
             upload_file.kill(timeout=5)
