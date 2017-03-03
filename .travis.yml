@@ -15,7 +15,7 @@ before_install:
 install:
   - bin/buildout -N
 script:
-  - bin/nosetests openprocurement/integrations/edr/databridge/tests/
+  - bin/nosetests
 after_success:
   - bin/coveralls
 notifications:
