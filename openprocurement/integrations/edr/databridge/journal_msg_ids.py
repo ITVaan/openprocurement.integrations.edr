@@ -31,4 +31,5 @@ DATABRIDGE_START_EDR_HANDLER = 'edr_databridge_start_edr_handler'
 DATABRIDGE_RESTART_EDR_HANDLER_GET_ID = 'edr_databridge_restart_edr_handler_get_id'
 DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS = 'edr_databridge_restart_edr_handler_get_details'
 DATABRIDGE_RESTART_UPDATE = 'edr_databridge_restart_update'
+DATABRIDGE_TENDER_NOT_PROCESS = 'edr_databridge_tender_not_process'
 
