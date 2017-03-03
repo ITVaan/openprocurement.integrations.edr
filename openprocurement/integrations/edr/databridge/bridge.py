@@ -14,6 +14,7 @@ import os
 import argparse
 import gevent
 
+from functools import partial
 from yaml import load
 from gevent.queue import Queue
 
@@ -70,21 +71,24 @@ class EdrDataBridge(object):
         self.processing_items = {}
 
         # Workers
-        self.scanner = Scanner(tenders_sync_client=self.tenders_sync_client,
+        self.scanner = partial(Scanner.spawn,
+                               tenders_sync_client=self.tenders_sync_client,
                                filtered_tender_ids_queue=self.filtered_tender_ids_queue,
                                delay=self.delay)
 
-        self.filter_tender = FilterTenders(tenders_sync_client=self.tenders_sync_client,
-                                           filtered_tender_ids_queue=self.filtered_tender_ids_queue,
-                                           edrpou_codes_queue=self.edrpou_codes_queue,
-                                           processing_items=self.processing_items,
-                                           delay=self.delay)
+        self.filter_tender = partial(FilterTenders.spawn,
+                                     tenders_sync_client=self.tenders_sync_client,
+                                     filtered_tender_ids_queue=self.filtered_tender_ids_queue,
+                                     edrpou_codes_queue=self.edrpou_codes_queue,
+                                     processing_items=self.processing_items,
+                                     delay=self.delay)
 
-        self.edr_handler = EdrHandler(edrApiClient=self.edrApiClient,
-                                      edrpou_codes_queue=self.edrpou_codes_queue,
-                                      edr_ids_queue=self.edr_ids_queue,
-                                      upload_file_queue=self.upload_file_queue,
-                                      delay=self.delay)
+        self.edr_handler = partial(EdrHandler.spawn,
+                                   edrApiClient=self.edrApiClient,
+                                   edrpou_codes_queue=self.edrpou_codes_queue,
+                                   edr_ids_queue=self.edr_ids_queue,
+                                   upload_file_queue=self.upload_file_queue,
+                                   delay=self.delay)
 
         self.upload_file = UploadFile(client=self.client,
                                       upload_file_queue=self.upload_file_queue,
@@ -96,10 +100,10 @@ class EdrDataBridge(object):
         return self.config.get('main').get(name)
 
     def _start_jobs(self):
-        self.jobs = {'scanner_job.run': gevent.spawn(self.scanner.run),
-                     'filter_tender.run': gevent.spawn(self.filter_tender.run),
-                     'edr_handler.run': gevent.spawn(self.edr_handler.run),
-                     'upload_file.run': gevent.spawn(self.upload_file.run)}
+        self.jobs = {'scanner': self.scanner(),
+                     'filter_tender': self.filter_tender(),
+                     'edr_handler': self.edr_handler(),
+                     'upload_file': self.upload_file.run()}
 
     def run(self):
         logger.info('Start EDR API Data Bridge', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))
