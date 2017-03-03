@@ -56,7 +56,6 @@ class UploadFile(Greenlet):
         while True:
             tender_data = self.upload_file_queue.get()
             try:
-                raise Exception
                 # create patch request to award/qualification with document to upload
                 if tender_data.item_name == 'awards':
                     document = self.client.upload_award_document(create_file(tender_data.file_content),

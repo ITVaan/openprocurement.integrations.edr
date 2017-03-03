@@ -72,8 +72,7 @@ class FilterTenders(Greenlet):
                                     tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None, None)
                                     self.edrpou_codes_queue.put(tender_data)
                                 else:
-                                    logger.info('Tender {} award {} identifier schema isn\'t UA-EDR or tender is already'
-                                                ' in process.'.format(tender['id'],  award['id']),
+                                    logger.info('Tender {} award {} identifier schema isn\'t UA-EDR or tender is already in process.'.format(tender['id'],  award['id']),
                                                 extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_NOT_PROCESS},
                                                                       params={"TENDER_ID": tender['id']}))
                         else:
@@ -95,8 +94,7 @@ class FilterTenders(Greenlet):
                                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_PROCESS},
                                                                    params={"TENDER_ID": tender['id']}))
                             else:
-                                logger.info('Tender {} qualification {} identifier schema is not UA-EDR or tender is '
-                                            'already in process.'.format(tender['id'], qualification['id']),
+                                logger.info('Tender {} qualification {} identifier schema is not UA-EDR or tender is already in process.'.format(tender['id'], qualification['id']),
                                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_TENDER_NOT_PROCESS},
                                                                    params={"TENDER_ID": tender['id']}))
                         else:
