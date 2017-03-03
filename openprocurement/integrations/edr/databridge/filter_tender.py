@@ -22,6 +22,7 @@ logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 
 class FilterTenders(object):
     """ Edr API Data Bridge """
+    identification_scheme = u'UA-EDR'
 
     def __init__(self, tenders_sync_client, filtered_tender_ids_queue, edrpou_codes_queue, processing_items, delay=15):
         super(FilterTenders, self).__init__()
@@ -62,7 +63,7 @@ class FilterTenders(object):
                         if award['status'] == 'pending' and not [document for document in award.get('documents', [])
                                                                  if document.get('documentType') == 'registerExtract']:
                             for supplier in award['suppliers']:
-                                if self.check_processing_item(award['id'], tender['id']) and supplier['identifier']['scheme'] == 'UA-EDR':
+                                if self.check_processing_item(award['id'], tender['id']) and supplier['identifier']['scheme'] == self.identification_scheme:
                                     tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None, None)
                                     self.edrpou_codes_queue.put(tender_data)
                                 else:
@@ -80,7 +81,7 @@ class FilterTenders(object):
                                 not [document for document in qualification.get('documents', [])
                                      if document.get('documentType') == 'registerExtract']:
                             appropriate_bid = [b for b in tender['bids'] if b['id'] == qualification['bidID']][0]
-                            if self.check_processing_item(qualification['id'], tender['id']) and appropriate_bid['tenderers'][0]['identifier']['scheme'] == 'UA-EDR':
+                            if self.check_processing_item(qualification['id'], tender['id']) and appropriate_bid['tenderers'][0]['identifier']['scheme'] == self.identification_scheme:
                                 tender_data = Data(tender['id'], qualification['id'],
                                                    appropriate_bid['tenderers'][0]['identifier']['id'], 'qualifications', None, None)
                                 self.edrpou_codes_queue.put(tender_data)
