@@ -13,6 +13,8 @@ except ImportError:
 
 import logging.config
 import gevent
+from datetime import datetime
+from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_SUCCESS_UPLOAD_FILE, DATABRIDGE_UNSUCCESS_UPLOAD_FILE,
@@ -20,10 +22,10 @@ from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_UNSUCCESS_RETRY_UPDATE_FILE, DATABRIDGE_RESTART_UPLOAD, DATABRIDGE_START_UPLOAD, DATABRIDGE_RESTART_UPDATE)
 from openprocurement.integrations.edr.databridge.utils import journal_context, Data, create_file
 
-logger = logging.getLogger("openprocurement.integrations.edr.databridge")
+logger = logging.getLogger(__name__)
 
 
-class UploadFile(object):
+class UploadFile(Greenlet):
     """ Upload file with details """
 
     pre_qualification_procurementMethodType = ('aboveThresholdEU', 'competitiveDialogueUA', 'competitiveDialogueEU')
@@ -31,6 +33,9 @@ class UploadFile(object):
 
     def __init__(self, client, upload_file_queue, update_file_queue, processing_items, delay=15):
         super(UploadFile, self).__init__()
+        self.exit = False
+        self.start_time = datetime.now()
+
         self.delay = delay
         self.processing_items = processing_items
 
@@ -168,10 +173,10 @@ class UploadFile(object):
 
     def run(self):
         logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_UPLOAD}, {}))
-        upload_file = gevent.spawn(self.upload_file)
-        update_file = gevent.spawn(self.update_file)
+        upload_file = spawn(self.upload_file)
+        update_file = spawn(self.update_file)
         try:
-            while True:
+            while not self.exit:
                 gevent.sleep(self.delay)
                 if upload_file.dead:
                     logger.warning("UploadFile worker upload_file dead try restart", extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_UPLOAD}, {}))
@@ -185,3 +190,7 @@ class UploadFile(object):
             logger.error(e)
             upload_file.kill(timeout=5)
             update_file.kill(timeout=5)
+
+    def shutdown(self):
+        self.exit = True
+        logger.info('Worker UploadFile complete his job.')

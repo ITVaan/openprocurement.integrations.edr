@@ -10,6 +10,8 @@ except ImportError:
 
 import logging.config
 import gevent
+from datetime import datetime
+from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_TENDER_PROCESS, DATABRIDGE_START_FILTER_TENDER,
@@ -17,14 +19,16 @@ from openprocurement.integrations.edr.databridge.journal_msg_ids import (
 from openprocurement.integrations.edr.databridge.utils import generate_req_id, journal_context
 from openprocurement.integrations.edr.databridge.utils import Data
 
-logger = logging.getLogger("openprocurement.integrations.edr.databridge")
+logger = logging.getLogger(__name__)
 
 
-class FilterTenders(object):
+class FilterTenders(Greenlet):
     """ Edr API Data Bridge """
 
     def __init__(self, tenders_sync_client, filtered_tender_ids_queue, edrpou_codes_queue, processing_items, delay=15):
         super(FilterTenders, self).__init__()
+        self.exit = False
+        self.start_time = datetime.now()
 
         self.delay = delay
         # init clients
@@ -99,15 +103,19 @@ class FilterTenders(object):
 
     def run(self):
         logger.info('Start Filter Tenders', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_FILTER_TENDER}, {}))
-        self.job = gevent.spawn(self.prepare_data)
+        self.job = spawn(self.prepare_data)
 
         try:
-            while True:
+            while not self.exit:
                 gevent.sleep(self.delay)
                 if self.job.dead:
                     logger.warning("Filter tender job die. Try to restart.",  extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_FILTER_TENDER}, {}))
-                    self.job = gevent.spawn(self.prepare_data)
+                    self.job = spawn(self.prepare_data)
                     logger.info("filter tenders job restarted.")
         except Exception as e:
             logger.error(e)
             self.job.kill(timeout=5)
+
+    def shutdown(self):
+        self.exit = True
+        logger.info('Worker Filter Tenders complete his job.')

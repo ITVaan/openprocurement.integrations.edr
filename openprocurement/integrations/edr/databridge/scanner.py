@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 
+from datetime import datetime
 import logging.config
 import gevent
-
-from uuid import uuid4
+from gevent import Greenlet, spawn
 from retrying import retry
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_INFO, DATABRIDGE_SYNC_SLEEP, DATABRIDGE_TENDER_PROCESS,
     DATABRIDGE_WORKER_DIED, DATABRIDGE_RESTART, DATABRIDGE_START_SCANNER)
-from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id
+from openprocurement.integrations.edr.databridge.utils import (
+    journal_context, generate_req_id
+)
 
-logger = logging.getLogger("openprocurement.integrations.edr.databridge")
+logger = logging.getLogger(__name__)
 
 
-class Scanner(object):
+class Scanner(Greenlet):
     """ Edr API Data Bridge """
 
     pre_qualification_procurementMethodType = ('aboveThresholdEU', 'competitiveDialogueUA', 'competitiveDialogueEU')
@@ -22,6 +24,8 @@ class Scanner(object):
 
     def __init__(self, tenders_sync_client, filtered_tender_ids_queue, delay=15):
         super(Scanner, self).__init__()
+        self.exit = False
+        self.start_time = datetime.now()
 
         self.delay = delay
         # init clients
@@ -111,8 +115,8 @@ class Scanner(object):
 
     def _start_synchronization_workers(self):
         logger.info('Scanner starting forward and backward sync workers')
-        self.jobs = [gevent.spawn(self.get_tenders_backward),
-                     gevent.spawn(self.get_tenders_forward)]
+        self.jobs = [spawn(self.get_tenders_backward),
+                     spawn(self.get_tenders_forward)]
 
     def _restart_synchronization_workers(self):
         logger.warning('Restarting synchronization', extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART}, {}))
@@ -120,16 +124,22 @@ class Scanner(object):
             j.kill(timeout=5)
         self._start_synchronization_workers()
 
-    def run(self):
+    def _run(self):
         logger.info('Start Scanner', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_SCANNER}, {}))
         self._start_synchronization_workers()
         backward_worker, forward_worker = self.jobs
 
         try:
-            while True:
+            while not self.exit:
                 gevent.sleep(self.delay)
-                if forward_worker.dead or (backward_worker.dead and not backward_worker.successful()):
+                if forward_worker.dead or (backward_worker.dead and
+                                           not backward_worker.successful()):
                     self._restart_synchronization_workers()
                     backward_worker, forward_worker = self.jobs
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
+            raise e
+
+    def shutdown(self):
+        self.exit = True
+        logger.info('Worker Scanner complete his job.')
