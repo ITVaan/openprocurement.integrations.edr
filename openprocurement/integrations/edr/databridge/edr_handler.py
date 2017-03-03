@@ -12,6 +12,8 @@ except ImportError:
 
 import logging.config
 import gevent
+from datetime import datetime
+from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_RESTART_EDR_HANDLER_GET_ID,
@@ -19,10 +21,10 @@ from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_EMPTY_RESPONSE, DATABRIDGE_RETRY_EDR_HANDLER_GET_ID, DATABRIDGE_RETRY_EDR_HANDLER_GET_DETAILS)
 from openprocurement.integrations.edr.databridge.utils import Data, journal_context, validate_param
 
-logger = logging.getLogger("openprocurement.integrations.edr.databridge")
+logger = logging.getLogger(__name__)
 
 
-class EdrHandler(object):
+class EdrHandler(Greenlet):
     """ Edr API Data Bridge """
     error_details = {'error': 'Couldn\'t find this code in EDR.'}
     identification_scheme = u"UA-EDR"
@@ -30,6 +32,8 @@ class EdrHandler(object):
 
     def __init__(self, edrApiClient, edrpou_codes_queue, edr_ids_queue, upload_file_queue, delay=15):
         super(EdrHandler, self).__init__()
+        self.exit = False
+        self.start_time = datetime.now()
 
         # init clients
         self.edrApiClient = edrApiClient
@@ -239,34 +243,39 @@ class EdrHandler(object):
 
     def run(self):
         logger.info('Start EDR Handler', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_EDR_HANDLER}, {}))
-        get_edr_id = gevent.spawn(self.get_edr_id)
-        get_edr_details = gevent.spawn(self.get_edr_details)
-        retry_get_edr_id = gevent.spawn(self.retry_get_edr_id)
-        retry_get_edr_details = gevent.spawn(self.retry_get_edr_details)
+        get_edr_id = spawn(self.get_edr_id)
+        get_edr_details = spawn(self.get_edr_details)
+        retry_get_edr_id = spawn(self.retry_get_edr_id)
+        retry_get_edr_details = spawn(self.retry_get_edr_details)
+
         try:
-            while True:
+            while not self.exit:
                 gevent.sleep(self.delay)
                 if get_edr_id.dead:
                     logger.warning("EDR handler worker get_edr_id dead try restart",
                                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_ID}, {}))
-                    get_edr_id = gevent.spawn(self.get_edr_id)
+                    get_edr_id = spawn(self.get_edr_id)
                     logger.info("EDR handler worker get_edr_id is up")
                 if get_edr_details.dead:
                     logger.warning("EDR handler worker get_edr_details dead try restart",
                                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS}, {}))
-                    get_edr_details = gevent.spawn(self.get_edr_details)
+                    get_edr_details = spawn(self.get_edr_details)
                     logger.info("EDR handler worker get_edr_details is up")
                 if retry_get_edr_id.dead:
                     logger.warning("EDR handler worker retry_get_edr_id dead try restart",
                                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_RETRY_EDR_HANDLER_GET_ID}, {}))
-                    retry_get_edr_id = gevent.spawn(self.retry_get_edr_id)
+                    retry_get_edr_id = spawn(self.retry_get_edr_id)
                     logger.info("EDR handler worker retry_get_edr_id is up")
                 if retry_get_edr_details.dead:
                     logger.warning("EDR handler worker retry_get_edr_details dead try restart",
                                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_RETRY_EDR_HANDLER_GET_DETAILS}, {}))
-                    retry_get_edr_details = gevent.spawn(self.retry_get_edr_details)
+                    retry_get_edr_details = spawn(self.retry_get_edr_details)
                     logger.info("EDR handler worker retry_get_edr_details is up")
         except Exception as e:
             logger.error(e)
             get_edr_details.kill(timeout=5)
             get_edr_id.kill(timeout=5)
+
+    def shutdown(self):
+        self.exit = True
+        logger.info('Worker EDR Handler complete his job.')
