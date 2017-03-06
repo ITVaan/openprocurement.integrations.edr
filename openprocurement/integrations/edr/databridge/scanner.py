@@ -37,7 +37,7 @@ class Scanner(Greenlet):
         # blockers
         self.initialization_event = gevent.event.Event()
 
-    @retry(stop_max_attempt_number=5)
+    @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def initialize_sync(self, params=None, direction=None):
         self.initialization_event.clear()
         if direction == "backward":
