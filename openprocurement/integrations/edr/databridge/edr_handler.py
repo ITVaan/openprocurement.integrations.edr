@@ -16,8 +16,7 @@ from datetime import datetime
 from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
-    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_RESTART_EDR_HANDLER_GET_ID,
-    DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE, DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS,
+    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE,
     DATABRIDGE_EMPTY_RESPONSE)
 from openprocurement.integrations.edr.databridge.utils import Data, journal_context, validate_param
 
@@ -243,25 +242,23 @@ class EdrHandler(Greenlet):
 
     def run(self):
         logger.info('Start EDR Handler', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_EDR_HANDLER}, {}))
-        get_edr_id = spawn(self.get_edr_id)
-        get_edr_details = spawn(self.get_edr_details)
+        self.immortal_jobs = {'get_edr_id': spawn(self.get_edr_id),
+                              'get_edr_details': spawn(self.get_edr_details),
+                              'retry_get_edr_id': spawn(self.retry_get_edr_id),
+                              'retry_get_edr_details': spawn(self.retry_get_edr_details)}
+
         try:
             while not self.exit:
                 gevent.sleep(self.delay)
-                if get_edr_id.dead:
-                    logger.warning("EDR handler worker get_edr_id dead try restart",
-                                   extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_ID}, {}))
-                    get_edr_id = spawn(self.get_edr_id)
-                    logger.info("EDR handler worker get_edr_id is up")
-                if get_edr_details.dead:
-                    logger.warning("EDR handler worker get_edr_details dead try restart",
-                                   extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS}, {}))
-                    get_edr_details = spawn(self.get_edr_details)
-                    logger.info("EDR handler worker get_edr_id is up")
+                for name, job in self.immortal_jobs.items():
+                    if job.dead:
+                        logger.warning("EDR handler worker {} dead try restart".format(name),
+                                       extra=journal_context({"MESSAGE_ID": "DATABRIDGE_RESTART_{}".format(name.lower())}, {}))
+                        self.immortal_jobs[name] = gevent.spawn(getattr(self, name))
+                        logger.info("EDR handler worker {} is up".format(name))
         except Exception as e:
             logger.error(e)
-            get_edr_details.kill(timeout=5)
-            get_edr_id.kill(timeout=5)
+            gevent.killall(self.immortal_jobs.values(), timeout=5)
 
     def shutdown(self):
         self.exit = True
