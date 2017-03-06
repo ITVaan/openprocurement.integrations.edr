@@ -67,6 +67,7 @@ class FilterTenders(Greenlet):
                         if award['status'] == 'pending' and not [document for document in award.get('documents', [])
                                                                  if document.get('documentType') == 'registerExtract']:
                             for supplier in award['suppliers']:
+                                # check first identification scheme, if yes then check if item is already in process or not
                                 if supplier['identifier']['scheme'] == self.identification_scheme and self.check_processing_item(award['id'], tender['id']):
                                     self.processing_items[award['id']] = tender['id']
                                     tender_data = Data(tender['id'], award['id'], supplier['identifier']['id'], 'awards', None, None)
@@ -85,6 +86,7 @@ class FilterTenders(Greenlet):
                                 not [document for document in qualification.get('documents', [])
                                      if document.get('documentType') == 'registerExtract']:
                             appropriate_bid = [b for b in tender['bids'] if b['id'] == qualification['bidID']][0]
+                            # check first identification scheme, if yes then check if item is already in process or not
                             if appropriate_bid['tenderers'][0]['identifier']['scheme'] == self.identification_scheme and self.check_processing_item(qualification['id'], tender['id']):
                                 self.processing_items[qualification['id']] = tender['id']
                                 tender_data = Data(tender['id'], qualification['id'],
