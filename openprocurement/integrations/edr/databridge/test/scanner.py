@@ -59,7 +59,7 @@ class TestScannerWorker(unittest.TestCase):
         worker.shutdown()
         del worker
 
-        self.assertEqual(tender_queue.qsize(), 3)
+        self.assertEqual(tender_queue.qsize(), 2)
 
 
 
