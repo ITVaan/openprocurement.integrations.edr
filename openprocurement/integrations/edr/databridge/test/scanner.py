@@ -39,14 +39,23 @@ class TestScannerWorker(unittest.TestCase):
                                 "id": uuid.uuid4().hex,
                                 'procurementMethodType': 'aboveThresholdUA'}]}),
             Unauthorized(),
+            Unauthorized(),
             munchify({'prev_page': {'offset': '123'},
                       'next_page': {'offset': '1234'},
-                      'data': [{'status': "active.qualification",
+                      'data': [{'status': "active.tendering",
                                 "id": uuid.uuid4().hex,
-                                'procurementMethodType': 'aboveThresholdUA'}]})]
+                                'procurementMethodType': 'aboveThresholdUA'}]}),
+            Unauthorized(),
+            Unauthorized(),
+            munchify({'prev_page': {'offset': '123'},
+                      'next_page': {'offset': '1234'},
+                      'data': [{'status': "active.pre-qualification",
+                                "id": uuid.uuid4().hex,
+                                'procurementMethodType': 'aboveThresholdUA'}]})
+        ]
 
         worker = Scanner.spawn(client, tender_queue)
-        sleep(20)
+        sleep(30)
 
         # Kill worker
         worker.shutdown()

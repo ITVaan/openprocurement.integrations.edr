@@ -172,7 +172,7 @@ class UploadFile(Greenlet):
             self.client.prefix_path, tender_data.tender_id, tender_data.item_name, tender_data.item_id,
             tender_data.file_content['document_id']), payload={"data": {"documentType": "registerExtract"}})
 
-    def run(self):
+    def _run(self):
         logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_UPLOAD}, {}))
         upload_file = spawn(self.upload_file)
         update_file = spawn(self.update_file)

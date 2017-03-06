@@ -101,7 +101,7 @@ class FilterTenders(Greenlet):
         self.processing_items[item_id] = tender_id
         return True
 
-    def run(self):
+    def _run(self):
         logger.info('Start Filter Tenders', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_FILTER_TENDER}, {}))
         self.job = spawn(self.prepare_data)
 
