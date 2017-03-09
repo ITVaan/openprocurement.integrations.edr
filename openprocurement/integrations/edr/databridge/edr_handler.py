@@ -29,7 +29,7 @@ class EdrHandler(Greenlet):
     identification_scheme = u"UA-EDR"
     activityKind_scheme = u'КВЕД'
 
-    def __init__(self, edrApiClient, edrpou_codes_queue, edr_ids_queue, upload_file_queue, delay=15):
+    def __init__(self, edrApiClient, edrpou_codes_queue, edr_ids_queue, upload_to_doc_service_queue, delay=15):
         super(EdrHandler, self).__init__()
         self.exit = False
         self.start_time = datetime.now()
@@ -40,7 +40,7 @@ class EdrHandler(Greenlet):
         # init queues for workers
         self.edrpou_codes_queue = edrpou_codes_queue
         self.edr_ids_queue = edr_ids_queue
-        self.upload_file_queue = upload_file_queue
+        self.upload_to_doc_service_queue = upload_to_doc_service_queue
 
         # retry queues for workers
         self.retry_edrpou_codes_queue = Queue(maxsize=500)
@@ -94,7 +94,7 @@ class EdrHandler(Greenlet):
                                                       params={"TENDER_ID": tender_data.tender_id}))
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, response.json(), self.error_details)
-                    self.upload_file_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_file_queue
+                    self.upload_to_doc_service_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_to_doc_service_queue
                     continue
                 # Create new Data object. Write to Data.code list of edr ids from EDR.
                 # List because EDR can return 0, 1 or 2 values to our reques
@@ -136,7 +136,7 @@ class EdrHandler(Greenlet):
                                                   params={"TENDER_ID": tender_data.tender_id}))
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                             tender_data.item_name, response.json(), self.error_details)
-                self.upload_file_queue.put(data)
+                self.upload_to_doc_service_queue.put(data)
             # Create new Data object. Write to Data.code list of edr ids from EDR.
             # List because EDR can return 0, 1 or 2 values to our request
             data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
@@ -156,7 +156,7 @@ class EdrHandler(Greenlet):
 
     def get_edr_details(self):
         """Get data from edr_ids_queue; make request to EDR Api for detailed info; Required fields is put to
-        Data.file_content variable, Data object is put to upload_file_queue."""
+        Data.file_content variable, Data object is put to upload_to_doc_service_queue."""
         while True:
             tender_data = self.edr_ids_queue.get()
             logger.info('Get edr ids {}  tender {} from edr_ids_queue'.format(tender_data.edr_ids, tender_data.tender_id),
@@ -169,7 +169,7 @@ class EdrHandler(Greenlet):
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
                                 self.prepare_data(response.json()))
-                    self.upload_file_queue.put(data)
+                    self.upload_to_doc_service_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
@@ -183,7 +183,7 @@ class EdrHandler(Greenlet):
                     gevent.sleep(0)
 
     def retry_get_edr_details(self):
-        """Get data from retry_edr_ids_queue; Put data into upload_file_queue if request is successful, otherwise put
+        """Get data from retry_edr_ids_queue; Put data into upload_to_doc_service_queue if request is successful, otherwise put
         data back to retry_edr_ids_queue."""
         while True:
             tender_data = self.retry_edr_ids_queue.get()
@@ -205,7 +205,7 @@ class EdrHandler(Greenlet):
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
                                 {key: value for key, value in response.json().items() if key in self.required_fields})
-                    self.upload_file_queue.put(data)
+                    self.upload_to_doc_service_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
