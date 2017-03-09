@@ -19,7 +19,7 @@ from yaml import load
 from gevent.queue import Queue
 
 from openprocurement_client.client import TendersClientSync, TendersClient
-from openprocurement.integrations.edr.client import EdrClient, DocServiceClient
+from openprocurement.integrations.edr.client import DocServiceClient
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_RESTART_WORKER, DATABRIDGE_START)
 from openprocurement.integrations.edr.databridge.scanner import Scanner
@@ -27,6 +27,7 @@ from openprocurement.integrations.edr.databridge.filter_tender import FilterTend
 from openprocurement.integrations.edr.databridge.edr_handler import EdrHandler
 from openprocurement.integrations.edr.databridge.upload_file import UploadFile
 from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id, Data, create_file
+from openprocurement.integrations.edr.client import ProxyClient
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 
@@ -47,9 +48,9 @@ class EdrDataBridge(object):
         # init clients
         self.tenders_sync_client = TendersClientSync('', host_url=ro_api_server, api_version=api_version)
         self.client = TendersClient(self.config_get('api_token'), host_url=api_server, api_version=api_version)
-        self.edrApiClient = EdrClient(host=self.config_get('edr_api_server'),
-                                      token=self.config_get('edr_api_token'),
-                                      port=self.config_get('edr_api_port'))
+        self.proxyClient = ProxyClient(host=self.config_get('proxy_server'),
+                                       token=self.config_get('proxy_token'),
+                                       port=self.config_get('proxy_port'))
         self.doc_service_client = DocServiceClient(host=self.config_get('doc_service_server'),
                                                    port=self.config_get('doc_service_port'),
                                                    token=self.config_get('doc_service_token'))
@@ -87,7 +88,7 @@ class EdrDataBridge(object):
                                      delay=self.delay)
 
         self.edr_handler = partial(EdrHandler.spawn,
-                                   edrApiClient=self.edrApiClient,
+                                   proxyClient=self.proxyClient,
                                    edrpou_codes_queue=self.edrpou_codes_queue,
                                    edr_ids_queue=self.edr_ids_queue,
                                    upload_to_doc_service_queue=self.upload_to_doc_service_queue,
