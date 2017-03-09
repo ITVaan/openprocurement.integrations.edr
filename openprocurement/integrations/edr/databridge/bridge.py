@@ -19,7 +19,7 @@ from yaml import load
 from gevent.queue import Queue
 
 from openprocurement_client.client import TendersClientSync, TendersClient
-from openprocurement.integrations.edr.client import DocServiceClient
+from openprocurement.integrations.edr.client import DocServiceClient, ProxyClient
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_RESTART_WORKER, DATABRIDGE_START)
 from openprocurement.integrations.edr.databridge.scanner import Scanner
@@ -27,7 +27,6 @@ from openprocurement.integrations.edr.databridge.filter_tender import FilterTend
 from openprocurement.integrations.edr.databridge.edr_handler import EdrHandler
 from openprocurement.integrations.edr.databridge.upload_file import UploadFile
 from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id, Data, create_file
-from openprocurement.integrations.edr.client import ProxyClient
 
 logger = logging.getLogger("openprocurement.integrations.edr.databridge")
 

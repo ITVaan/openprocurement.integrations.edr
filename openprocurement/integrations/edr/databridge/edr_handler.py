@@ -87,14 +87,13 @@ class EdrHandler(Greenlet):
                                               params={"TENDER_ID": tender_data.tender_id}))
             gevent.wait([self.until_too_many_requests_event])
             response = self.proxyClient.verify(validate_param(tender_data.code), tender_data.code)
-            if response.status_code == 403 and response.json().get('errors') and response.json().get('errors')[0].get('description') == [{"message": "EDRPOU not found"}]:
+            if response.status_code == 403 and response.json().get('errors')[0].get('description') == [{"message": "EDRPOU not found"}]:
                 logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
                             extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
                                                   params={"TENDER_ID": tender_data.tender_id}))
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                             tender_data.item_name, response.json(), self.error_details)
-                self.upload_to_doc_service_queue.put(
-                    data)  # Given EDRPOU code not found, file with error put into upload_to_doc_service_queue
+                self.upload_to_doc_service_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_to_doc_service_queue
                 continue
             if response.status_code == 200:
                 # Create new Data object. Write to Data.code list of edr ids from EDR.
