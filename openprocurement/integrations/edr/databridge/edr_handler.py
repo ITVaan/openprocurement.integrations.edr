@@ -16,8 +16,7 @@ from datetime import datetime
 from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
-    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_RESTART_EDR_HANDLER_GET_ID,
-    DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE, DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS,
+    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE,
     DATABRIDGE_EMPTY_RESPONSE)
 from openprocurement.integrations.edr.databridge.utils import Data, journal_context, validate_param
 
@@ -26,22 +25,22 @@ logger = logging.getLogger(__name__)
 
 class EdrHandler(Greenlet):
     """ Edr API Data Bridge """
-
-    required_fields = ['names', 'founders', 'management', 'activity_kinds', 'address', 'bankruptcy']
     error_details = {'error': 'Couldn\'t find this code in EDR.'}
+    identification_scheme = u"UA-EDR"
+    activityKind_scheme = u'КВЕД'
 
-    def __init__(self, edrApiClient, edrpou_codes_queue, edr_ids_queue, upload_file_queue, delay=15):
+    def __init__(self, proxyClient, edrpou_codes_queue, edr_ids_queue, upload_to_doc_service_queue, delay=15):
         super(EdrHandler, self).__init__()
         self.exit = False
         self.start_time = datetime.now()
 
         # init clients
-        self.edrApiClient = edrApiClient
+        self.proxyClient = proxyClient
 
         # init queues for workers
         self.edrpou_codes_queue = edrpou_codes_queue
         self.edr_ids_queue = edr_ids_queue
-        self.upload_file_queue = upload_file_queue
+        self.upload_to_doc_service_queue = upload_to_doc_service_queue
 
         # retry queues for workers
         self.retry_edrpou_codes_queue = Queue(maxsize=500)
@@ -54,6 +53,30 @@ class EdrHandler(Greenlet):
 
         self.delay = delay
 
+    def prepare_data(self, data):
+        additional_activity_kinds = []
+        primary_activity_kind = {}
+        for activity_kind in data.get('activity_kinds', []):
+            if activity_kind.get('is_primary'):
+                primary_activity_kind = {'id': activity_kind.get('code'),
+                                         'scheme': self.activityKind_scheme,
+                                         'description': activity_kind.get('name')}
+            else:
+                additional_activity_kinds.append({'id': activity_kind.get('code'),
+                                                  'scheme': self.activityKind_scheme,
+                                                  'description': activity_kind.get('name')})
+        return {'name': data.get('names').get('short') if data.get('names') else None,
+                'identification': {'scheme': self.identification_scheme,
+                                   'id': data.get('code'),
+                                   'legalName': data.get('names').get('display') if data.get('names') else None},
+                'founders': data.get('founders'),
+                'management': data.get('management'),
+                'activityKind': primary_activity_kind or None,
+                'additionalActivityKinds': additional_activity_kinds or None,
+                'address': {'streetAddress': data.get('address').get('address') if data.get('address') else None,
+                            'postalCode': data.get('address').get('zip') if data.get('address') else None,
+                            'countryName': data.get('address').get('country') if data.get('address') else None}}
+
     def get_edr_id(self):
         """Get data from edrpou_codes_queue; make request to EDR Api, passing EDRPOU (IPN, passport); Received ids is
         put into Data.edr_ids variable; Data variable placed to edr_ids_queue."""
@@ -63,16 +86,16 @@ class EdrHandler(Greenlet):
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                               params={"TENDER_ID": tender_data.tender_id}))
             gevent.wait([self.until_too_many_requests_event])
-            response = self.edrApiClient.get_subject(validate_param(tender_data.code), tender_data.code)
+            response = self.proxyClient.verify(validate_param(tender_data.code), tender_data.code)
+            if response.status_code == 403 and response.json().get('errors')[0].get('description') == [{"message": "EDRPOU not found"}]:
+                logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
+                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
+                                                  params={"TENDER_ID": tender_data.tender_id}))
+                data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
+                            tender_data.item_name, response.json(), self.error_details)
+                self.upload_to_doc_service_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_to_doc_service_queue
+                continue
             if response.status_code == 200:
-                if not response.json():
-                    logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
-                                extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
-                                                      params={"TENDER_ID": tender_data.tender_id}))
-                    data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                                tender_data.item_name, response.json(), self.error_details)
-                    self.upload_file_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_file_queue
-                    continue
                 # Create new Data object. Write to Data.code list of edr ids from EDR.
                 # List because EDR can return 0, 1 or 2 values to our reques
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
@@ -113,7 +136,7 @@ class EdrHandler(Greenlet):
                                                   params={"TENDER_ID": tender_data.tender_id}))
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                             tender_data.item_name, response.json(), self.error_details)
-                self.upload_file_queue.put(data)
+                self.upload_to_doc_service_queue.put(data)
             # Create new Data object. Write to Data.code list of edr ids from EDR.
             # List because EDR can return 0, 1 or 2 values to our request
             data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
@@ -126,14 +149,14 @@ class EdrHandler(Greenlet):
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def get_edr_id_request(self, param, code):
         """Execute request to EDR Api for retry queue objects."""
-        response = self.edrApiClient.get_subject(param, code)
+        response = self.proxyClient.verify(param, code)
         if response.status_code != 200:
             raise Exception('Unsuccessful retry request to EDR.')
         return response
 
     def get_edr_details(self):
         """Get data from edr_ids_queue; make request to EDR Api for detailed info; Required fields is put to
-        Data.file_content variable, Data object is put to upload_file_queue."""
+        Data.file_content variable, Data object is put to upload_to_doc_service_queue."""
         while True:
             tender_data = self.edr_ids_queue.get()
             logger.info('Get edr ids {}  tender {} from edr_ids_queue'.format(tender_data.edr_ids, tender_data.tender_id),
@@ -141,12 +164,12 @@ class EdrHandler(Greenlet):
                                               params={"TENDER_ID": tender_data.tender_id}))
             gevent.wait([self.until_too_many_requests_event])
             for edr_id in tender_data.edr_ids:
-                response = self.edrApiClient.get_subject_details(edr_id)
+                response = self.proxyClient.details(edr_id)
                 if response.status_code == 200:
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
-                                {key: value for key, value in response.json().items() if key in self.required_fields})
-                    self.upload_file_queue.put(data)
+                                self.prepare_data(response.json()))
+                    self.upload_to_doc_service_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
@@ -160,7 +183,7 @@ class EdrHandler(Greenlet):
                     gevent.sleep(0)
 
     def retry_get_edr_details(self):
-        """Get data from retry_edr_ids_queue; Put data into upload_file_queue if request is successful, otherwise put
+        """Get data from retry_edr_ids_queue; Put data into upload_to_doc_service_queue if request is successful, otherwise put
         data back to retry_edr_ids_queue."""
         while True:
             tender_data = self.retry_edr_ids_queue.get()
@@ -182,7 +205,7 @@ class EdrHandler(Greenlet):
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
                                 {key: value for key, value in response.json().items() if key in self.required_fields})
-                    self.upload_file_queue.put(data)
+                    self.upload_to_doc_service_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
@@ -192,7 +215,7 @@ class EdrHandler(Greenlet):
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def get_edr_details_request(self, edr_id):
         """Execute request to EDR Api to get detailed info for retry queue objects."""
-        response = self.edrApiClient.get_subject_details(edr_id)
+        response = self.proxyClient.details(edr_id)
         if response.status_code != 200:
             raise Exception('Unsuccessful retry request to EDR.')
         return response
@@ -219,25 +242,23 @@ class EdrHandler(Greenlet):
 
     def _run(self):
         logger.info('Start EDR Handler', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_EDR_HANDLER}, {}))
-        get_edr_id = spawn(self.get_edr_id)
-        get_edr_details = spawn(self.get_edr_details)
+        self.immortal_jobs = {'get_edr_id': spawn(self.get_edr_id),
+                              'get_edr_details': spawn(self.get_edr_details),
+                              'retry_get_edr_id': spawn(self.retry_get_edr_id),
+                              'retry_get_edr_details': spawn(self.retry_get_edr_details)}
+
         try:
             while not self.exit:
                 gevent.sleep(self.delay)
-                if get_edr_id.dead:
-                    logger.warning("EDR handler worker get_edr_id dead try restart",
-                                   extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_ID}, {}))
-                    get_edr_id = spawn(self.get_edr_id)
-                    logger.info("EDR handler worker get_edr_id is up")
-                if get_edr_details.dead:
-                    logger.warning("EDR handler worker get_edr_details dead try restart",
-                                   extra=journal_context({"MESSAGE_ID": DATABRIDGE_RESTART_EDR_HANDLER_GET_DETAILS}, {}))
-                    get_edr_details = spawn(self.get_edr_details)
-                    logger.info("EDR handler worker get_edr_id is up")
+                for name, job in self.immortal_jobs.items():
+                    if job.dead:
+                        logger.warning("EDR handler worker {} dead try restart".format(name),
+                                       extra=journal_context({"MESSAGE_ID": "DATABRIDGE_RESTART_{}".format(name.lower())}, {}))
+                        self.immortal_jobs[name] = gevent.spawn(getattr(self, name))
+                        logger.info("EDR handler worker {} is up".format(name))
         except Exception as e:
             logger.error(e)
-            get_edr_details.kill(timeout=5)
-            get_edr_id.kill(timeout=5)
+            gevent.killall(self.immortal_jobs.values(), timeout=5)
 
     def shutdown(self):
         self.exit = True

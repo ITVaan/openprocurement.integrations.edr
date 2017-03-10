@@ -19,7 +19,7 @@ from yaml import load
 from gevent.queue import Queue
 
 from openprocurement_client.client import TendersClientSync, TendersClient
-from openprocurement.integrations.edr.client import EdrClient
+from openprocurement.integrations.edr.client import DocServiceClient, ProxyClient
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_RESTART_WORKER, DATABRIDGE_START)
 from openprocurement.integrations.edr.databridge.scanner import Scanner
@@ -47,9 +47,12 @@ class EdrDataBridge(object):
         # init clients
         self.tenders_sync_client = TendersClientSync('', host_url=ro_api_server, api_version=api_version)
         self.client = TendersClient(self.config_get('api_token'), host_url=api_server, api_version=api_version)
-        self.edrApiClient = EdrClient(host=self.config_get('edr_api_server'),
-                                      token=self.config_get('edr_api_token'),
-                                      port=self.config_get('edr_api_port'))
+        self.proxyClient = ProxyClient(host=self.config_get('proxy_server'),
+                                       token=self.config_get('proxy_token'),
+                                       port=self.config_get('proxy_port'))
+        self.doc_service_client = DocServiceClient(host=self.config_get('doc_service_server'),
+                                                   port=self.config_get('doc_service_port'),
+                                                   token=self.config_get('doc_service_token'))
 
         # init queues for workers
         self.filtered_tender_ids_queue = Queue(maxsize=buffers_size)  # queue of tender IDs with appropriate status
@@ -57,9 +60,9 @@ class EdrDataBridge(object):
         # edr_ids_queue - queue with unique identification of the edr object (Data.edr_ids in Data object),
         # received from EDR Api. Later used to make second request to EDR to get detailed info
         self.edr_ids_queue = Queue(maxsize=buffers_size)
-        self.upload_file_queue = Queue(maxsize=buffers_size)  # queue with detailed info from EDR (Data.file_content)
-        # update_file_queue - queue with document_id (Data.file_content) to update documentType field in file
-        self.update_file_queue = Queue(maxsize=buffers_size)
+        self.upload_to_doc_service_queue = Queue(maxsize=buffers_size)  # queue with detailed info from EDR (Data.file_content)
+        # upload_to_tender_queue - queue with  file's get_url
+        self.upload_to_tender_queue = Queue(maxsize=buffers_size)
 
         # blockers
         self.initialization_event = gevent.event.Event()
@@ -84,17 +87,18 @@ class EdrDataBridge(object):
                                      delay=self.delay)
 
         self.edr_handler = partial(EdrHandler.spawn,
-                                   edrApiClient=self.edrApiClient,
+                                   proxyClient=self.proxyClient,
                                    edrpou_codes_queue=self.edrpou_codes_queue,
                                    edr_ids_queue=self.edr_ids_queue,
-                                   upload_file_queue=self.upload_file_queue,
+                                   upload_to_doc_service_queue=self.upload_to_doc_service_queue,
                                    delay=self.delay)
 
         self.upload_file = partial(UploadFile.spawn,
                                    client=self.client,
-                                   upload_file_queue=self.upload_file_queue,
-                                   update_file_queue=self.update_file_queue,
+                                   upload_to_doc_service_queue=self.upload_to_doc_service_queue,
+                                   upload_to_tender_queue=self.upload_to_tender_queue,
                                    processing_items=self.processing_items,
+                                   doc_service_client=self.doc_service_client,
                                    delay=self.delay)
 
     def config_get(self, name):
@@ -114,12 +118,12 @@ class EdrDataBridge(object):
             while True:
                 gevent.sleep(self.delay)
                 if counter == 20:
-                    logger.info('Current state: filtered tenders {}; edrpou codes queue {}; edr ids queue {}; Upload file {}; Update file {}'.format(
+                    logger.info('Current state: filtered tenders {}; edrpou codes queue {}; edr ids queue {}; Upload to doc service {}; Upload to tender {}'.format(
                         self.filtered_tender_ids_queue.qsize(),
                         self.edrpou_codes_queue.qsize(),
                         self.edr_ids_queue.qsize(),
-                        self.upload_file_queue.qsize(),
-                        self.update_file_queue.qsize()))
+                        self.upload_to_doc_service_queue.qsize(),
+                        self.upload_to_tender_queue.qsize()))
                     counter = 0
                 counter += 1
                 for name, job in self.jobs.items():
