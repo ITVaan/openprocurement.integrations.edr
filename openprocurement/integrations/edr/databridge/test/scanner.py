@@ -87,6 +87,7 @@ class TestScannerWorker(unittest.TestCase):
         self.assertEqual(tender_queue.qsize(), 1)
         self.assertEqual(len(gevent_sleep.mock_calls), 3)
         self.assertEqual(scanner.sleep_multiplier, 1)
+        scanner.sleep_multiplier = 0
 
     @patch('gevent.sleep')
     def test_425_sleep_multiplier(self, gevent_sleep):
@@ -112,6 +113,7 @@ class TestScannerWorker(unittest.TestCase):
         # Kill worker
         worker.shutdown()
         del worker
+        scanner.sleep_multiplier = 0
 
 
 
