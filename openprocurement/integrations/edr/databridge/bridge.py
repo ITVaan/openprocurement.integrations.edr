@@ -43,6 +43,8 @@ class EdrDataBridge(object):
         ro_api_server = self.config_get('public_tenders_api_server') or api_server
         buffers_size = self.config_get('buffers_size') or 500
         self.delay = self.config_get('delay') or 15
+        self.increment_step = self.config_get('increment_step') or 1
+        self.decrement_step = self.config_get('decrement_step') or 1
 
         # init clients
         self.tenders_sync_client = TendersClientSync('', host_url=ro_api_server, api_version=api_version)
@@ -77,6 +79,8 @@ class EdrDataBridge(object):
         self.scanner = partial(Scanner.spawn,
                                tenders_sync_client=self.tenders_sync_client,
                                filtered_tender_ids_queue=self.filtered_tender_ids_queue,
+                               increment_step=self.increment_step,
+                               decrement_step=self.decrement_step,
                                delay=self.delay)
 
         self.filter_tender = partial(FilterTenders.spawn,
