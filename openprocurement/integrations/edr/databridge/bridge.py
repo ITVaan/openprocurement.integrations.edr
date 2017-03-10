@@ -93,12 +93,13 @@ class EdrDataBridge(object):
                                    upload_to_doc_service_queue=self.upload_to_doc_service_queue,
                                    delay=self.delay)
 
-        self.upload_file = UploadFile(client=self.client,
-                                      upload_to_doc_service_queue=self.upload_to_doc_service_queue,
-                                      upload_to_tender_queue=self.upload_to_tender_queue,
-                                      processing_items=self.processing_items,
-                                      doc_service_client=self.doc_service_client,
-                                      delay=self.delay)
+        self.upload_file = partial(UploadFile.spawn,
+                                   client=self.client,
+                                   upload_to_doc_service_queue=self.upload_to_doc_service_queue,
+                                   upload_to_tender_queue=self.upload_to_tender_queue,
+                                   processing_items=self.processing_items,
+                                   doc_service_client=self.doc_service_client,
+                                   delay=self.delay)
 
     def config_get(self, name):
         return self.config.get('main').get(name)
@@ -107,7 +108,7 @@ class EdrDataBridge(object):
         self.jobs = {'scanner': self.scanner(),
                      'filter_tender': self.filter_tender(),
                      'edr_handler': self.edr_handler(),
-                     'upload_file': self.upload_file.run()}
+                     'upload_file': self.upload_file()}
 
     def run(self):
         logger.info('Start EDR API Data Bridge', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START}, {}))

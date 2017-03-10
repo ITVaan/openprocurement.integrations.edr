@@ -160,7 +160,7 @@ class UploadFile(Greenlet):
                                                  {'data': document_data},
                                                  '{}/{}/documents'.format(tender_data.item_name,
                                                                           tender_data.item_id))
-    def run(self):
+    def _run(self):
         logger.info('Start UploadFile worker', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_UPLOAD}, {}))
         self.immortal_jobs = {'upload_to_doc_service': spawn(self.upload_to_doc_service),
                               'upload_to_tender': spawn(self.upload_to_tender),

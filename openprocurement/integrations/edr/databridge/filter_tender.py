@@ -109,7 +109,7 @@ class FilterTenders(Greenlet):
         """Check if current tender_id, item_id is processing"""
         return not (self.processing_items.get(item_id) and self.processing_items[item_id] == tender_id)
 
-    def run(self):
+    def _run(self):
         logger.info('Start Filter Tenders', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_FILTER_TENDER}, {}))
         self.job = spawn(self.prepare_data)
 

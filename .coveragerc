@@ -1,7 +1,6 @@
 [run]
 omit =
     *tests*
-    *databridge.py
     *journal_msg_ids.py
     *docs.py
 

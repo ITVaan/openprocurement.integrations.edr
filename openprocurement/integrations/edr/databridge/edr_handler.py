@@ -240,7 +240,7 @@ class EdrHandler(Greenlet):
                         'Description: {err}'.format(err=response.text),
                         extra=journal_context(params={"TENDER_ID": tender_id}))
 
-    def run(self):
+    def _run(self):
         logger.info('Start EDR Handler', extra=journal_context({"MESSAGE_ID": DATABRIDGE_START_EDR_HANDLER}, {}))
         self.immortal_jobs = {'get_edr_id': spawn(self.get_edr_id),
                               'get_edr_details': spawn(self.get_edr_details),
