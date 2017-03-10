@@ -5,6 +5,7 @@ import logging.config
 import gevent
 from gevent import Greenlet, spawn
 from retrying import retry
+from restkit import ResourceError
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_INFO, DATABRIDGE_SYNC_SLEEP, DATABRIDGE_TENDER_PROCESS,
@@ -14,6 +15,7 @@ from openprocurement.integrations.edr.databridge.utils import (
 )
 
 logger = logging.getLogger(__name__)
+sleep_multiplier = 0
 
 
 class Scanner(Greenlet):
@@ -37,13 +39,26 @@ class Scanner(Greenlet):
         # blockers
         self.initialization_event = gevent.event.Event()
 
+    def check_425(self, response):
+        global sleep_multiplier
+        logger.info("Get 425, need to wait.")
+        if response.status_int == 425:
+            sleep_multiplier += 1  # Gradually increase sleep_multiplier for more sleep
+            gevent.sleep(1 * sleep_multiplier)
+
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def initialize_sync(self, params=None, direction=None):
+        global sleep_multiplier
         self.initialization_event.clear()
         if direction == "backward":
             assert params['descending']
-            response = self.tenders_sync_client.sync_tenders(params,
-                                                             extra_headers={'X-Client-Request-ID': generate_req_id()})
+            try:
+                response = self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
+                # Gradually decrease sleep_multiplier for less sleep
+                if not sleep_multiplier:
+                    sleep_multiplier -= 1
+            except ResourceError as re:
+                self.check_425(re)
             # set values in reverse order due to 'descending' option
             self.initial_sync_point = {'forward_offset': response.prev_page.offset,
                                        'backward_offset': response.next_page.offset}
@@ -55,8 +70,13 @@ class Scanner(Greenlet):
             gevent.wait([self.initialization_event])
             params['offset'] = self.initial_sync_point['forward_offset']
             logger.info("Starting forward sync from offset {}".format(params['offset']))
-            return self.tenders_sync_client.sync_tenders(params,
-                                                         extra_headers={'X-Client-Request-ID': generate_req_id()})
+            try:
+                response = self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
+                if not sleep_multiplier:
+                    sleep_multiplier -= 1
+            except ResourceError as re:
+                self.check_425(re)
+            return response
 
     def get_tenders(self, params={}, direction=""):
         response = self.initialize_sync(params=params, direction=direction)
