@@ -238,17 +238,3 @@ class TestFilterWorker(unittest.TestCase):
         self.assertEqual(edrpou_codes_queue.get(), data)
         self.assertItemsEqual(processing_items.keys(), [first_award_id])
 
-    @patch('gevent.sleep')
-    def test_worker_dead(self, gevent_sleep):
-        gevent_sleep.side_effect = custom_sleep
-        tender_id = uuid.uuid4().hex
-        filtered_tender_ids_queue = Queue(10)
-        filtered_tender_ids_queue.put(tender_id)
-        edrpou_codes_queue = Queue(10)
-        processing_items = {}
-        client = MagicMock()
-        client.get_tender.side_effect = []
-        worker = FilterTenders.spawn(client, filtered_tender_ids_queue, edrpou_codes_queue, processing_items)
-        sleep(2)
-        worker.shutdown()
-        del worker
