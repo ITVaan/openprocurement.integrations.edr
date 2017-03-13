@@ -109,8 +109,8 @@ class EdrHandler(Greenlet):
                                                                            tender_data.item_name,
                                                                            tender_data.item_id))
             else:
+                self.retry_edrpou_codes_queue.put(tender_data)  # Put tender to retry
                 self.handle_status_response(response, tender_data.tender_id)
-                self.retry_edrpou_codes_queue.put(tender_data)
                 logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
