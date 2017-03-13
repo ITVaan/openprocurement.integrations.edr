@@ -58,6 +58,7 @@ class FilterTenders(Greenlet):
                 logger.info('Put tender {} back to tenders queue'.format(tender_id),
                             extra=journal_context(params={"TENDER_ID": tender_id}))
                 self.filtered_tender_ids_queue.put(tender_id)
+                gevent.sleep(0)
             else:
                 if 'awards' in tender:
                     for award in tender['awards']:
