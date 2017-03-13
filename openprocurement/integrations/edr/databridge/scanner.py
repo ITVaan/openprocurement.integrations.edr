@@ -84,7 +84,10 @@ class Scanner(Greenlet):
             try:
                 response = self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
                 if Scanner.sleep_change_value:
-                    Scanner.sleep_change_value -= self.decrement_step
+                    if self.decrement_step < Scanner.sleep_change_value:
+                        Scanner.sleep_change_value -= self.decrement_step
+                    else:
+                        Scanner.sleep_change_value = 0
             except ResourceError as re:
                 if re.status_int == 425:
                     Scanner.sleep_change_value += self.increment_step
