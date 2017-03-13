@@ -5,6 +5,7 @@ import logging.config
 import gevent
 from gevent import Greenlet, spawn
 from retrying import retry
+from restkit import ResourceError
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_INFO, DATABRIDGE_SYNC_SLEEP, DATABRIDGE_TENDER_PROCESS,
@@ -21,8 +22,9 @@ class Scanner(Greenlet):
 
     pre_qualification_procurementMethodType = ('aboveThresholdEU', 'competitiveDialogueUA', 'competitiveDialogueEU')
     qualification_procurementMethodType = ('aboveThresholdUA', 'aboveThresholdUA.defense', 'aboveThresholdEU', 'competitiveDialogueUA.stage2', 'competitiveDialogueEU.stage2')
+    sleep_change_value = 0
 
-    def __init__(self, tenders_sync_client, filtered_tender_ids_queue, delay=15):
+    def __init__(self, tenders_sync_client, filtered_tender_ids_queue, increment_step=1, decrement_step=1, delay=15):
         super(Scanner, self).__init__()
         self.exit = False
         self.start_time = datetime.now()
@@ -36,14 +38,15 @@ class Scanner(Greenlet):
 
         # blockers
         self.initialization_event = gevent.event.Event()
+        self.increment_step = increment_step
+        self.decrement_step = decrement_step
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def initialize_sync(self, params=None, direction=None):
         self.initialization_event.clear()
         if direction == "backward":
             assert params['descending']
-            response = self.tenders_sync_client.sync_tenders(params,
-                                                             extra_headers={'X-Client-Request-ID': generate_req_id()})
+            response = self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
             # set values in reverse order due to 'descending' option
             self.initial_sync_point = {'forward_offset': response.prev_page.offset,
                                        'backward_offset': response.next_page.offset}
@@ -55,8 +58,7 @@ class Scanner(Greenlet):
             gevent.wait([self.initialization_event])
             params['offset'] = self.initial_sync_point['forward_offset']
             logger.info("Starting forward sync from offset {}".format(params['offset']))
-            return self.tenders_sync_client.sync_tenders(params,
-                                                         extra_headers={'X-Client-Request-ID': generate_req_id()})
+            return self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
 
     def get_tenders(self, params={}, direction=""):
         response = self.initialize_sync(params=params, direction=direction)
@@ -78,9 +80,13 @@ class Scanner(Greenlet):
                                 extra=journal_context({"MESSAGE_ID": DATABRIDGE_INFO},
                                                       params={"TENDER_ID": tender['id']}))
             logger.info('Sleep {} sync...'.format(direction), extra=journal_context({"MESSAGE_ID": DATABRIDGE_SYNC_SLEEP}))
-            gevent.sleep(self.delay)
-            response = self.tenders_sync_client.sync_tenders(params,
-                                                             extra_headers={'X-Client-Request-ID': generate_req_id()})
+            gevent.sleep(self.delay + Scanner.sleep_change_value)
+            try:
+                response = self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
+                Scanner.sleep_change_value = Scanner.sleep_change_value - self.decrement_step if self.decrement_step < Scanner.sleep_change_value else 0
+            except ResourceError as re:
+                if re.status_int == 425:
+                    Scanner.sleep_change_value += self.increment_step
 
     def get_tenders_forward(self):
         logger.info('Start forward data sync worker...')
