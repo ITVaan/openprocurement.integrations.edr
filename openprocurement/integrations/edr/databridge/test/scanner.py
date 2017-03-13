@@ -25,6 +25,8 @@ class TestScannerWorker(unittest.TestCase):
                            worker.start_time.isoformat())
         self.assertEqual(worker.tenders_sync_client, None)
         self.assertEqual(worker.filtered_tender_ids_queue, None)
+        self.assertEqual(worker.increment_step, 1)
+        self.assertEqual(worker.decrement_step, 1)
         self.assertEqual(worker.delay, 15)
         self.assertEqual(worker.exit, False)
 
@@ -33,7 +35,7 @@ class TestScannerWorker(unittest.TestCase):
 
     @patch('gevent.sleep')
     def test_worker(self, gevent_sleep):
-        """ Try ... """
+        """ Returns tenders, check queue elements after filtering """
         gevent_sleep.side_effect = custom_sleep
         tender_queue = Queue(10)
         client = MagicMock()
@@ -69,6 +71,7 @@ class TestScannerWorker(unittest.TestCase):
 
     @patch('gevent.sleep')
     def test_425(self, gevent_sleep):
+        """Receive 425 status, check queue, check sleep_change_value"""
         gevent_sleep.side_effect = custom_sleep
         tender_queue = Queue(10)
         client = MagicMock()
@@ -101,6 +104,7 @@ class TestScannerWorker(unittest.TestCase):
 
     @patch('gevent.sleep')
     def test_425_sleep_change_value(self, gevent_sleep):
+        """Three times receive 425, check queue, check sleep_change_value"""
         gevent_sleep.side_effect = custom_sleep
         tender_queue = Queue(10)
         client = MagicMock()
