@@ -16,8 +16,10 @@ from datetime import datetime
 from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
-    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE,
-    DATABRIDGE_EMPTY_RESPONSE)
+    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER,
+    DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE,
+    DATABRIDGE_EMPTY_RESPONSE
+)
 from openprocurement.integrations.edr.databridge.utils import Data, journal_context, validate_param
 
 logger = logging.getLogger(__name__)
