@@ -5,14 +5,11 @@ import datetime
 from gevent.queue import Queue
 from gevent import sleep as gsleep
 from openprocurement.integrations.edr.databridge.filter_tender import FilterTenders
-from openprocurement.integrations.edr.databridge.scanner import Scanner
 from openprocurement.integrations.edr.databridge.utils import Data
 from mock import patch, MagicMock
 from time import sleep
 from munch import munchify
-from restkit.errors import (
-    Unauthorized, RequestFailed, ResourceError
-)
+from restkit.errors import Unauthorized
 
 
 def custom_sleep(seconds):
