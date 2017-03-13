@@ -85,7 +85,7 @@ class TestEdrHandlerWorker(unittest.TestCase):
 
         sleep(10)
         worker.shutdown()
-        self.assertEqual(mrequest.call_count, 3)  # Requests must call proxy two times
+        self.assertEqual(mrequest.call_count, 3)  # Requests must call proxy three times
         self.assertEqual(mrequest.request_history[0].url,
                          u'127.0.0.1:80/verify?code=123')  # First return 401
         self.assertEqual(mrequest.request_history[1].url,
@@ -94,3 +94,28 @@ class TestEdrHandlerWorker(unittest.TestCase):
                          u'127.0.0.1:80/verify?code=135')  # Resume normal work
 
 
+    @requests_mock.Mocker()
+    @patch('gevent.sleep')
+    def test_proxy_client_429(self, mrequest, gevent_sleep):
+        gevent_sleep.side_effect = custom_sleep
+        proxy_client = ProxyClient(host='127.0.0.1', port='80', token='')
+        mrequest.get("{uri}".format(uri=proxy_client.verify_url),
+                     [{'text': '', 'status_code': 429, 'headers': {'Retry-After': '10'}},
+                      {'json': [{'id': '321'}], 'status_code': 200},
+                      {'json': [{'id': '333'}], 'status_code': 200}])
+
+        edrpou_codes_queue = Queue(10)
+        edrpou_codes_queue.put(Data(uuid.uuid4().hex, 'award_id', '123', "awards", None, None))
+        edrpou_codes_queue.put(Data(uuid.uuid4().hex, 'award_id', '135', "awards", None, None))
+
+        worker = EdrHandler.spawn(proxy_client, edrpou_codes_queue, MagicMock(), MagicMock())
+
+        sleep(10)
+        worker.shutdown()
+        self.assertEqual(mrequest.call_count, 3)  # Requests must call proxy three times
+        self.assertEqual(mrequest.request_history[0].url,
+                         u'127.0.0.1:80/verify?code=123')  # First return 429
+        self.assertEqual(mrequest.request_history[1].url,
+                         u'127.0.0.1:80/verify?code=123')
+        self.assertEqual(mrequest.request_history[2].url,
+                         u'127.0.0.1:80/verify?code=135')
