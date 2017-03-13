@@ -10,7 +10,8 @@ requires = [
 test_requires = requires + [
     'webtest',
     'python-coveralls',
-    'mock==1.0.1'
+    'mock==1.0.1',
+    'requests_mock'
 ]
 
 databridge_requires = requires + [

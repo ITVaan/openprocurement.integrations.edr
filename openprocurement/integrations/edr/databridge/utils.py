@@ -40,3 +40,7 @@ def create_file(details):
     temporary_file.seek(0)
 
     return temporary_file
+
+
+class RetryException(Exception):
+    pass
