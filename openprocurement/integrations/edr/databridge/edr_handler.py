@@ -16,9 +16,13 @@ from datetime import datetime
 from gevent import Greenlet, spawn
 
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
-    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER, DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE,
-    DATABRIDGE_EMPTY_RESPONSE)
-from openprocurement.integrations.edr.databridge.utils import Data, journal_context, validate_param
+    DATABRIDGE_GET_TENDER_FROM_QUEUE, DATABRIDGE_START_EDR_HANDLER,
+    DATABRIDGE_UNAUTHORIZED_EDR, DATABRIDGE_SUCCESS_CREATE_FILE,
+    DATABRIDGE_EMPTY_RESPONSE
+)
+from openprocurement.integrations.edr.databridge.utils import (
+    Data, journal_context, validate_param, RetryException
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +109,12 @@ class EdrHandler(Greenlet):
                                                                            tender_data.item_name,
                                                                            tender_data.item_id))
             else:
+                self.retry_edrpou_codes_queue.put(tender_data)  # Put tender to retry
                 self.handle_status_response(response, tender_data.tender_id)
-                self.retry_edrpou_codes_queue.put(tender_data)
                 logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
-                gevent.sleep(0)
+            gevent.sleep(0)
 
     def retry_get_edr_id(self):
         """Get data from retry_edrpou_codes_queue; Put data into edr_ids_queue if request is successful, otherwise put
@@ -122,8 +126,15 @@ class EdrHandler(Greenlet):
         gevent.wait([self.until_too_many_requests_event])
         try:
             response = self.get_edr_id_request(validate_param(tender_data.code), tender_data.code)
+        except RetryException as re:
+            logger.info("RetryException error message {}".format(re.args[0]))
+            self.handle_status_response(re.args[1], tender_data.tender_id)
+            self.retry_edrpou_codes_queue.put(tender_data)
+            logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
+                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
+            gevent.sleep(0)
         except Exception:
-            self.handle_status_response(response, tender_data.tender_id)
             self.retry_edrpou_codes_queue.put(tender_data)
             logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
                 tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -151,7 +162,7 @@ class EdrHandler(Greenlet):
         """Execute request to EDR Api for retry queue objects."""
         response = self.proxyClient.verify(param, code)
         if response.status_code != 200:
-            raise Exception('Unsuccessful retry request to EDR.')
+            raise RetryException('Unsuccessful retry request to EDR.', response)
         return response
 
     def get_edr_details(self):
@@ -217,7 +228,7 @@ class EdrHandler(Greenlet):
         """Execute request to EDR Api to get detailed info for retry queue objects."""
         response = self.proxyClient.details(edr_id)
         if response.status_code != 200:
-            raise Exception('Unsuccessful retry request to EDR.')
+            raise RetryException('Unsuccessful retry request to EDR.', response)
         return response
 
     def handle_status_response(self, response, tender_id):
