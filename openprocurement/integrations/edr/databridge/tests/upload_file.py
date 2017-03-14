@@ -6,6 +6,7 @@ import requests_mock
 from gevent.queue import Queue
 from time import sleep
 from mock import patch, MagicMock
+from restkit.errors import Unauthorized
 
 from openprocurement.integrations.edr.client import DocServiceClient
 from openprocurement.integrations.edr.databridge.upload_file import UploadFile
@@ -14,8 +15,6 @@ from openprocurement.integrations.edr.databridge.tests.utils import custom_sleep
 
 
 class TestUploadFileWorker(unittest.TestCase):
-    tender_id = uuid.uuid4().hex
-    award_id = uuid.uuid4().hex
 
     def test_init(self):
         worker = UploadFile.spawn(None, None, None, None, None)
@@ -36,29 +35,128 @@ class TestUploadFileWorker(unittest.TestCase):
 
     @requests_mock.Mocker()
     @patch('gevent.sleep')
-    def test_doc_service_client(self, mrequest, gevent_sleep):
+    def test_successful_upload(self, mrequest, gevent_sleep):
         gevent_sleep.side_effect = custom_sleep
         doc_service_client = DocServiceClient(host='127.0.0.1', port='80', token='')
-        client = MagicMock()
-        mrequest.get('{url}'.format(url=doc_service_client.url),
-                     json={'data': {'url': 'http://docs-sandbox.openprocurement.org/get/8ccbfde0c6804143b119d9168452cb6f',
+        mrequest.post('{url}'.format(url=doc_service_client.url),
+                      json={'data': {'url': 'http://docs-sandbox.openprocurement.org/get/8ccbfde0c6804143b119d9168452cb6f',
                                     'format': 'text/plain',
                                     'hash': 'md5:9a0364b9e99bb480dd25e1f0284c8555',
                                     'title': 'file.txt'}},
-                     status_code=200)
-        client.get_tender.side_effect = [{'data': {'id': uuid.uuid4().hex,
-                                                   'documentOf': 'tender',
-                                                   'documentType': 'registerExtract',
-                                                   'url': 'url'}}]
-
+                      status_code=200)
+        client = MagicMock()
+        client._create_tender_resource_item.side_effect = [{'data': {'id': uuid.uuid4().hex,
+                                                                     'documentOf': 'tender',
+                                                                     'documentType': 'registerExtract',
+                                                                     'url': 'url'}}]
+        tender_id = uuid.uuid4().hex
+        award_id = uuid.uuid4().hex
+        processing_items = {award_id: tender_id}
         upload_to_doc_service_queue = Queue(10)
-        upload_to_doc_service_queue.put(Data(TestUploadFileWorker.tender_id, TestUploadFileWorker.award_id, '123', 'awards', None, {'test_data': 'test_data'}))
+        upload_to_tender_queue = Queue(10)
+        upload_to_doc_service_queue.put(Data(tender_id, award_id, '123', 'awards', None, {'test_data': 'test_data'}))
+        self.assertItemsEqual(processing_items.keys(), [award_id])
         self.assertEqual(upload_to_doc_service_queue.qsize(), 1)
-        processing_items = {TestUploadFileWorker.award_id: TestUploadFileWorker.tender_id}
-        worker = UploadFile.spawn(MagicMock(), upload_to_doc_service_queue, MagicMock(), processing_items, doc_service_client)
-        sleep(10)
+        worker = UploadFile.spawn(client, upload_to_doc_service_queue, upload_to_tender_queue, processing_items, doc_service_client)
+        sleep(4)
         worker.shutdown()
-        self.assertEqual(upload_to_doc_service_queue.qsize(), 0, 'Queue must be empty')
-        self.assertEqual(mrequest.call_count, 2)
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(upload_to_tender_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(mrequest.call_count, 1)
         self.assertEqual(mrequest.request_history[0].url, u'127.0.0.1:80/upload')
-        self.assertItemsEqual(processing_items.keys(), [TestUploadFileWorker.award_id])
+        self.assertItemsEqual(processing_items.keys(), [])  # test that item removed from processing_items
+        self.assertEqual(client._create_tender_resource_item.call_count, 1)  # check upload to tender
+
+
+    @requests_mock.Mocker()
+    @patch('gevent.sleep')
+    def test_retry_doc_service(self, mrequest, gevent_sleep):
+        gevent_sleep.side_effect = custom_sleep
+        doc_service_client = DocServiceClient(host='127.0.0.1', port='80', token='')
+        mrequest.post('{url}'.format(url=doc_service_client.url),
+                      [{'text': '', 'status_code': 401},
+                       {'text': '', 'status_code': 401},
+                      {'json': {'data': {'url': 'test url',
+                                         'format': 'text/plain',
+                                         'hash': 'md5:9a0364b9e99bb480dd25e1f0284c8555',
+                                         'title': 'file.txt'}},
+                       'status_code': 200}])
+        client = MagicMock()
+        client._create_tender_resource_item.side_effect = [{'data': {'id': uuid.uuid4().hex,
+                                                                     'documentOf': 'tender',
+                                                                     'documentType': 'registerExtract',
+                                                                     'url': 'url'}}]
+        tender_id = uuid.uuid4().hex
+        award_id = uuid.uuid4().hex
+        processing_items = {award_id: tender_id}
+        upload_to_doc_service_queue = Queue(10)
+        upload_to_tender_queue = Queue(10)
+        upload_to_doc_service_queue.put(Data(tender_id, award_id, '123', 'awards', None, {'test_data': 'test_data'}))
+        self.assertItemsEqual(processing_items.keys(), [award_id])
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 1)
+        worker = UploadFile.spawn(client, upload_to_doc_service_queue, upload_to_tender_queue, processing_items, doc_service_client)
+        sleep(4)
+        worker.shutdown()
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(upload_to_tender_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(mrequest.call_count, 3)
+        self.assertEqual(mrequest.request_history[0].url, u'127.0.0.1:80/upload')
+        self.assertItemsEqual(processing_items.keys(), [])  # test that item removed from processing_items
+        self.assertEqual(client._create_tender_resource_item.call_count, 1)  # check upload to tender
+
+    @requests_mock.Mocker()
+    @patch('gevent.sleep')
+    def test_retry_upload_to_tender(self, mrequest, gevent_sleep):
+        gevent_sleep.side_effect = custom_sleep
+        doc_service_client = DocServiceClient(host='127.0.0.1', port='80', token='')
+        mrequest.post('{url}'.format(url=doc_service_client.url),
+                      json={'data': {'url': 'http://docs-sandbox.openprocurement.org/get/8ccbfde0c6804143b119d9168452cb6f',
+                                    'format': 'text/plain',
+                                    'hash': 'md5:9a0364b9e99bb480dd25e1f0284c8555',
+                                    'title': 'file.txt'}},
+                      status_code=200)
+        client = MagicMock()
+        client._create_tender_resource_item.side_effect = [Unauthorized(),
+                                                           Unauthorized(),
+                                                           Unauthorized(),
+                                                           {'data': {'id': uuid.uuid4().hex,
+                                                                     'documentOf': 'tender',
+                                                                     'documentType': 'registerExtract',
+                                                                     'url': 'url'}}]
+        tender_id = uuid.uuid4().hex
+        award_id = uuid.uuid4().hex
+        processing_items = {award_id: tender_id}
+        upload_to_doc_service_queue = Queue(10)
+        upload_to_tender_queue = Queue(10)
+        upload_to_doc_service_queue.put(Data(tender_id, award_id, '123', 'awards', None, {'test_data': 'test_data'}))
+        self.assertItemsEqual(processing_items.keys(), [award_id])
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 1)
+        worker = UploadFile.spawn(client, upload_to_doc_service_queue, upload_to_tender_queue, processing_items, doc_service_client)
+        sleep(7)
+        worker.shutdown()
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(upload_to_tender_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(mrequest.call_count, 1)
+        self.assertEqual(mrequest.request_history[0].url, u'127.0.0.1:80/upload')
+        self.assertEqual(processing_items, {})  # test that item removed from processing_items
+        self.assertEqual(client._create_tender_resource_item.call_count, 4)  # check upload to tender
+
+    @patch('gevent.sleep')
+    def test_exception_upload_doc_service(self, gevent_sleep):
+        gevent_sleep.side_effect = custom_sleep
+        tender_id = uuid.uuid4().hex
+        award_id = uuid.uuid4().hex
+        processing_items = {award_id: tender_id}
+        upload_to_doc_service_queue = Queue(10)
+        upload_to_tender_queue = Queue(10)
+        upload_to_doc_service_queue.put(Data(tender_id, award_id, '123', 'awards', None, {'test string'}))
+        self.assertItemsEqual(processing_items.keys(), [award_id])
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 1)
+        worker = UploadFile.spawn(MagicMock(), upload_to_doc_service_queue, upload_to_tender_queue, processing_items, MagicMock())
+        sleep(4)
+        worker.shutdown()
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(upload_to_tender_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(worker.retry_upload_to_doc_service_queue.qsize(), 0, 'Queue should be empty')
+        self.assertEqual(worker.retry_upload_to_tender_queue.qsize(), 0, 'Queue should be empty')
+        self.assertItemsEqual(processing_items.keys(), [award_id])  # test that item removed from processing_items
