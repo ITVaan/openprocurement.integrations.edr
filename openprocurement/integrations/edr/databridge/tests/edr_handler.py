@@ -128,8 +128,7 @@ class TestEdrHandlerWorker(unittest.TestCase):
 
         edrpou_codes_queue = Queue(10)
         edrpou_codes_queue.put(Data(uuid.uuid4().hex, 'award_id', '123', "awards", None, None))
-        edrpou_codes_queue.put(
-            Data(uuid.uuid4().hex, 'award_id', '135', "awards", None, None))
+        edrpou_codes_queue.put(Data(uuid.uuid4().hex, 'award_id', '135', "awards", None, None))
 
         worker = EdrHandler.spawn(proxy_client, edrpou_codes_queue,
                                   MagicMock(), MagicMock())

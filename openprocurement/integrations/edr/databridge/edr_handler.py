@@ -119,43 +119,47 @@ class EdrHandler(Greenlet):
     def retry_get_edr_id(self):
         """Get data from retry_edrpou_codes_queue; Put data into edr_ids_queue if request is successful, otherwise put
         data back to retry_edrpou_codes_queue."""
-        tender_data = self.retry_edrpou_codes_queue.get()
-        logger.info('Get tender {} from retry_edrpou_codes_queue'.format(tender_data.tender_id),
-                    extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
-                                          params={"TENDER_ID": tender_data.tender_id}))
-        gevent.wait([self.until_too_many_requests_event])
-        try:
-            response = self.get_edr_id_request(validate_param(tender_data.code), tender_data.code)
-        except RetryException as re:
-            logger.info("RetryException error message {}".format(re.args[0]))
-            self.handle_status_response(re.args[1], tender_data.tender_id)
-            self.retry_edrpou_codes_queue.put(tender_data)
-            logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
-                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
+        while True:
+            tender_data = self.retry_edrpou_codes_queue.get()
+            logger.info('Get tender {} from retry_edrpou_codes_queue'.format(tender_data.tender_id),
+                        extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
+                                              params={"TENDER_ID": tender_data.tender_id}))
+            gevent.wait([self.until_too_many_requests_event])
+            try:
+                response = self.get_edr_id_request(validate_param(tender_data.code), tender_data.code)
+            except RetryException as re:
+                logger.info("RetryException error message {}".format(re.args[0]))
+                self.handle_status_response(re.args[1], tender_data.tender_id)
+                self.retry_edrpou_codes_queue.put(tender_data)
+                logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
+                    tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                    extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
+                gevent.sleep(0)
+            except Exception:
+                self.retry_edrpou_codes_queue.put(tender_data)
+                logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
+                    tender_data.tender_id, tender_data.item_name, tender_data.item_id),
+                    extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
+                gevent.sleep(0)
+            else:
+                if response.status_code == 403 and response.json().get('errors')[0].get('description') == [{"message": "EDRPOU not found"}]:
+                    logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
+                                extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
+                                                      params={"TENDER_ID": tender_data.tender_id}))
+                    data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
+                                tender_data.item_name, response.json(), self.error_details)
+                    self.upload_to_doc_service_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_to_doc_service_queue
+                    continue
+                # Create new Data object. Write to Data.code list of edr ids from EDR.
+                # List because EDR can return 0, 1 or 2 values to our request
+                if response.status_code == 200:
+                    data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
+                                tender_data.item_name, [obj['id'] for obj in response.json()], None)
+                    self.edr_ids_queue.put(data)
+                    logger.info('Put tender {} {} {} to edr_ids_queue.'.format(tender_data.tender_id,
+                                                                               tender_data.item_name,
+                                                                               tender_data.item_id))
             gevent.sleep(0)
-        except Exception:
-            self.retry_edrpou_codes_queue.put(tender_data)
-            logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
-                tender_data.tender_id, tender_data.item_name, tender_data.item_id),
-                extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
-            gevent.sleep(0)
-        else:
-            if not response.json():
-                logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
-                            extra=journal_context({"MESSAGE_ID": DATABRIDGE_EMPTY_RESPONSE},
-                                                  params={"TENDER_ID": tender_data.tender_id}))
-                data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                            tender_data.item_name, response.json(), self.error_details)
-                self.upload_to_doc_service_queue.put(data)
-            # Create new Data object. Write to Data.code list of edr ids from EDR.
-            # List because EDR can return 0, 1 or 2 values to our request
-            data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
-                        tender_data.item_name, [obj['id'] for obj in response.json()], None)
-            self.edr_ids_queue.put(data)
-            logger.info('Put tender {} {} {} to edr_ids_queue.'.format(tender_data.tender_id,
-                                                                       tender_data.item_name,
-                                                                       tender_data.item_id))
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def get_edr_id_request(self, param, code):
@@ -191,7 +195,7 @@ class EdrHandler(Greenlet):
                     logger.info('Put tender {} with {} id {} to retry_edr_ids_queue'.format(
                                 tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
-                    gevent.sleep(0)
+            gevent.sleep(0)
 
     def retry_get_edr_details(self):
         """Get data from retry_edr_ids_queue; Put data into upload_to_doc_service_queue if request is successful, otherwise put
@@ -222,6 +226,7 @@ class EdrHandler(Greenlet):
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
                                               params={"TENDER_ID": tender_data.tender_id}))
                     tender_data.edr_ids.remove(edr_id)  # remove from list edr_id that have successful response
+            gevent.sleep(0)
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def get_edr_details_request(self, edr_id):
