@@ -156,7 +156,7 @@ class EdrHandler(Greenlet):
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, [obj['id'] for obj in response.json()], None)
                     self.edr_ids_queue.put(data)
-                    logger.info('Put tender {} {} {} to edr_ids_queue.'.format(tender_data.tender_id,
+                    logger.info('Put tender {} {} {} from retry to edr_ids_queue.'.format(tender_data.tender_id,
                                                                                tender_data.item_name,
                                                                                tender_data.item_id))
             gevent.sleep(0)
