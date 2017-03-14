@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+from gevent import monkey
+monkey.patch_all()
+
 import logging.config
 import gevent
 from datetime import datetime
@@ -43,8 +47,8 @@ class Scanner(Greenlet):
 
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def initialize_sync(self, params=None, direction=None):
-        self.initialization_event.clear()
         if direction == "backward":
+            self.initialization_event.clear()
             assert params['descending']
             response = self.tenders_sync_client.sync_tenders(params, extra_headers={'X-Client-Request-ID': generate_req_id()})
             # set values in reverse order due to 'descending' option
@@ -87,6 +91,8 @@ class Scanner(Greenlet):
             except ResourceError as re:
                 if re.status_int == 425:
                     Scanner.sleep_change_value += self.increment_step
+                else:
+                    raise re
 
     def get_tenders_forward(self):
         logger.info('Start forward data sync worker...')
