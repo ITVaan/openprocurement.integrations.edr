@@ -3,10 +3,9 @@ import webtest
 import os
 
 from openprocurement.integrations.edr.tests.base import BaseWebTest
-from openprocurement.integrations.edr.tests._server import setup_routing, response_code, response_passport, \
-    check_headers, payment_required, forbidden, not_acceptable, too_many_requests, two_error_messages, bad_gateway, \
-    server_error
-from openprocurement.integrations.edr.utils import VERSION
+from openprocurement.integrations.edr.tests._server import (setup_routing, response_code, response_passport,
+    check_headers, payment_required, forbidden, not_acceptable, too_many_requests, two_error_messages, bad_gateway,
+    server_error, response_details, too_many_requests_details, bad_gateway_details)
 
 
 class TestVerify(BaseWebTest):
@@ -228,3 +227,80 @@ class TestVerify(BaseWebTest):
         with open(os.path.join(os.path.dirname(__file__), 'test_data.yaml'), 'r') as f:
             test_yaml_data = f.read()
         self.assertEqual(response.body, test_yaml_data)
+
+
+class TestDetails(BaseWebTest):
+    """ Test details view """
+
+    def test_details(self):
+        """Check data for get_subject_details request"""
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=response_details)
+        response = self.app.get('/details/2842335')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.json['data'], {
+            u"additionalActivityKinds": [
+                {u"scheme": u"КВЕД",
+                 u"id": u"64.92",
+                 u"description": u"Інші види кредитування"},
+                {u"scheme": u"КВЕД",
+                 u"id": u"64.99",
+                 u"description": u"Надання інших фінансових послуг (крім страхування та пенсійного забезпечення), н. в. і. у."},
+                {u"scheme": u"КВЕД",
+                 u"id": u"66.11",
+                 u"description": u"Управління фінансовими ринками"},
+                {u"scheme": u"КВЕД",
+                 u"id": u"66.12",
+                 u"description": u"Посередництво за договорами по цінних паперах або товарах"},
+                {u"scheme": u"КВЕД",
+                 u"id": u"66.19",
+                 u"description": u"Інша допоміжна діяльність у сфері фінансових послуг, крім страхування та пенсійного забезпечення"}],
+            u"management": u"ЗАГАЛЬНІ ЗБОРИ",
+            u"name": u"ПАТ КБ \"ПРИВАТБАНК\"",
+            u"identification": {u"scheme": u"UA-EDR",
+                               u"id": u"14360570",
+                               u"legalName": u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
+            u"address": {u"postalCode": u"49094",
+                        u"countryName": u"УКРАЇНА",
+                        u"streetAddress": u"Дніпропетровська обл., місто Дніпропетровськ, Жовтневий район ВУЛИЦЯ НАБЕРЕЖНА ПЕРЕМОГИ буд. 50"},
+            u"founders": [{u"role_text": u"засновник",
+                          u"role": 4,
+                          u"name": u"АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ",
+                          u"address": None,
+                          u"capital": 18100740000}],
+            u"activityKind": {u"scheme": u"КВЕД",
+                             u"id": u"64.19",
+                             u"description": u"Інші види грошового посередництва"}
+        })
+
+    def test_too_many_requests_details(self):
+        """Check 429 status EDR response(too many requests) for details request"""
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=too_many_requests_details)
+        response = self.app.get('/details/2842335', status=403)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status, '403 Forbidden')
+        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Retry request after 26 seconds.'}])
+
+    def test_bad_gateway_details(self):
+        """Check 502 status EDR response"""
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=bad_gateway_details)
+        response = self.app.get('/details/2842335', status=403)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status, '403 Forbidden')
+        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Service is disabled or upgrade.'}])
+
+    def test_accept_yaml_details(self):
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335',func=response_details)
+        response = self.app.get('/details/2842335', headers={'Accept': 'application/yaml'})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.content_type, 'application/yaml')
+        with open(os.path.join(os.path.dirname(__file__), 'test_data_details.yaml'), 'r') as f:
+            test_yaml_data = f.read()
+        self.assertEqual(response.body, test_yaml_data)
+
+
+class TestVerifyPlatform(TestVerify):
+
+    def setUp(self):
+        self.app.authorization = ('Basic', ('platform', 'platform'))
+

@@ -30,7 +30,7 @@ class BaseWebTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        pass
+        cls.server.close()
 
     def setUp(self):
         self.app.authorization = ('Basic', ('robot', 'robot'))

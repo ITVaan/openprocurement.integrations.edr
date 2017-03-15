@@ -20,6 +20,8 @@ VERSION = '{}.{}'.format(int(PKG.parsed_version[0]), int(PKG.parsed_version[1]) 
 json_view = partial(view, renderer='json')
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 USERS = {}
+identification_schema = u'UA-EDR'
+activityKind_scheme = u'КВЕД'
 
 
 class Root(object):
@@ -159,3 +161,38 @@ def set_renderer(event):
 def auth_check(username, password, request):
     if username in USERS and USERS[username]['password'] == sha512(password).hexdigest():
         return ['g:{}'.format(USERS[username]['group'])]
+
+
+def prepare_data(data):
+    return {'id': data.get('id'),
+            'state': {'code': data.get('state'),
+                      'description': data.get('state_text')},
+            'identification': {'schema': identification_schema,
+                               'id': data.get('code'),
+                               'legalName': data.get('name'),
+                               'url': data.get('url')}}
+
+
+def prepare_data_details(data):
+    additional_activity_kinds = []
+    primary_activity_kind = {}
+    for activity_kind in data.get('activity_kinds', []):
+        if activity_kind.get('is_primary'):
+            primary_activity_kind = {'id': activity_kind.get('code'),
+                                     'scheme': activityKind_scheme,
+                                     'description': activity_kind.get('name')}
+        else:
+            additional_activity_kinds.append({'id': activity_kind.get('code'),
+                                              'scheme': activityKind_scheme,
+                                              'description': activity_kind.get('name')})
+    return {'name': data.get('names').get('short') if data.get('names') else None,
+            'identification': {'scheme': identification_schema,
+                               'id': data.get('code'),
+                               'legalName': data.get('names').get('display') if data.get('names') else None},
+            'founders': data.get('founders'),
+            'management': data.get('management'),
+            'activityKind': primary_activity_kind or None,
+            'additionalActivityKinds': additional_activity_kinds or None,
+            'address': {'streetAddress': data.get('address').get('address') if data.get('address') else None,
+                        'postalCode': data.get('address').get('zip') if data.get('address') else None,
+                        'countryName': data.get('address').get('country') if data.get('address') else None}}
