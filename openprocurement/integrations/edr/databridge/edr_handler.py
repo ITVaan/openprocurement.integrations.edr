@@ -89,7 +89,7 @@ class EdrHandler(Greenlet):
             logger.info('Get tender {} from edrpou_codes_queue'.format(tender_data.tender_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                               params={"TENDER_ID": tender_data.tender_id}))
-            gevent.wait([self.until_too_many_requests_event])
+            self.until_too_many_requests_event.wait()
             response = self.proxyClient.verify(validate_param(tender_data.code), tender_data.code)
             if response.status_code == 403 and response.json().get('errors')[0].get('description') == [{"message": "EDRPOU not found"}]:
                 logger.info('Empty response for tender {}.'.format(tender_data.tender_id),
@@ -124,7 +124,7 @@ class EdrHandler(Greenlet):
             logger.info('Get tender {} from retry_edrpou_codes_queue'.format(tender_data.tender_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                               params={"TENDER_ID": tender_data.tender_id}))
-            gevent.wait([self.until_too_many_requests_event])
+            self.until_too_many_requests_event.wait()
             try:
                 response = self.get_edr_id_request(validate_param(tender_data.code), tender_data.code)
             except RetryException as re:
@@ -177,7 +177,7 @@ class EdrHandler(Greenlet):
             logger.info('Get edr ids {}  tender {} from edr_ids_queue'.format(tender_data.edr_ids, tender_data.tender_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                               params={"TENDER_ID": tender_data.tender_id}))
-            gevent.wait([self.until_too_many_requests_event])
+            self.until_too_many_requests_event.wait()
             for edr_id in tender_data.edr_ids:
                 response = self.proxyClient.details(edr_id)
                 if response.status_code == 200:
@@ -206,7 +206,7 @@ class EdrHandler(Greenlet):
                                                                                     tender_data.tender_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_GET_TENDER_FROM_QUEUE},
                                               params={"TENDER_ID": tender_data.tender_id}))
-            gevent.wait([self.until_too_many_requests_event])
+            self.until_too_many_requests_event.wait()
             for edr_id in tender_data.edr_ids:
                 try:
                     response = self.get_edr_details_request(edr_id)
@@ -243,9 +243,7 @@ class EdrHandler(Greenlet):
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_UNAUTHORIZED_EDR}, {"TENDER_ID": tender_id}))
             raise Exception('Invalid EDR API token')
         elif response.status_code == 429:
-            self.until_too_many_requests_event.clear()
-            gevent.sleep(response.headers.get('Retry-After', self.delay))
-            self.until_too_many_requests_event.set()
+            self.until_too_many_requests_event.wait(response.headers.get('Retry-After', self.delay))
         elif response.status_code == 402:
             logger.info('Payment required for requesting info to EDR. '
                         'Error description: {err}'.format(err=response.text),
