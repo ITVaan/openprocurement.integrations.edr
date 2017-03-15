@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+`from gevent import monkey
+monkey.patch_all()
+
 import uuid
 import unittest
 import datetime
@@ -11,8 +14,6 @@ from openprocurement.integrations.edr.databridge.edr_handler import EdrHandler
 from openprocurement.integrations.edr.databridge.utils import Data
 from openprocurement.integrations.edr.databridge.tests.utils import custom_sleep
 from openprocurement.integrations.edr.client import ProxyClient
-
-
 
 
 class TestEdrHandlerWorker(unittest.TestCase):
