@@ -13,7 +13,6 @@ databridge_requires = requires + [
     'ExtendedJournalHandler',
     'requests',
     'openprocurement_client>=1.0b2'
-    'PyYAML',
 ]
 
 api_requires = requires + [
