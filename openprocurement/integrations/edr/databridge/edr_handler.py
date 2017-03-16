@@ -57,30 +57,6 @@ class EdrHandler(Greenlet):
 
         self.delay = delay
 
-    def prepare_data(self, data):
-        additional_activity_kinds = []
-        primary_activity_kind = {}
-        for activity_kind in data.get('activity_kinds', []):
-            if activity_kind.get('is_primary'):
-                primary_activity_kind = {'id': activity_kind.get('code'),
-                                         'scheme': self.activityKind_scheme,
-                                         'description': activity_kind.get('name')}
-            else:
-                additional_activity_kinds.append({'id': activity_kind.get('code'),
-                                                  'scheme': self.activityKind_scheme,
-                                                  'description': activity_kind.get('name')})
-        return {'name': data.get('names').get('short') if data.get('names') else None,
-                'identification': {'scheme': self.identification_scheme,
-                                   'id': data.get('code'),
-                                   'legalName': data.get('names').get('display') if data.get('names') else None},
-                'founders': data.get('founders'),
-                'management': data.get('management'),
-                'activityKind': primary_activity_kind or None,
-                'additionalActivityKinds': additional_activity_kinds or None,
-                'address': {'streetAddress': data.get('address').get('address') if data.get('address') else None,
-                            'postalCode': data.get('address').get('zip') if data.get('address') else None,
-                            'countryName': data.get('address').get('country') if data.get('address') else None}}
-
     def get_edr_id(self):
         """Get data from edrpou_codes_queue; make request to EDR Api, passing EDRPOU (IPN, passport); Received ids is
         put into Data.edr_ids variable; Data variable placed to edr_ids_queue."""
@@ -189,12 +165,13 @@ class EdrHandler(Greenlet):
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                         extra=journal_context({"MESSAGE_ID": DATABRIDGE_SUCCESS_CREATE_FILE},
                                               params={"TENDER_ID": tender_data.tender_id}))
-                    tender_data.edr_ids.remove(edr_id)  # remove from list edr_id that have successful response
                 else:
-                    self.retry_edr_ids_queue.put(tender_data)
+                    self.retry_edr_ids_queue.put(Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
+                                                      tender_data.item_name, [edr_id], tender_data.file_content))
                     logger.info('Put tender {} with {} id {} to retry_edr_ids_queue'.format(
                                 tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                             extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
+
             gevent.sleep(0)
 
     def retry_get_edr_details(self):
