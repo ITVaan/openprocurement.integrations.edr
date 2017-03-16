@@ -74,7 +74,6 @@ class EdrHandler(Greenlet):
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                             tender_data.item_name, [], self.error_details)
                 self.upload_to_doc_service_queue.put(data)  # Given EDRPOU code not found, file with error put into upload_to_doc_service_queue
-                self.edrpou_codes_queue.get()
                 continue
             if response.status_code == 200:
                 # Create new Data object. Write to Data.code list of edr ids from EDR.
@@ -82,17 +81,16 @@ class EdrHandler(Greenlet):
                 data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                             tender_data.item_name, [edr_ids['id'] for edr_ids in response.json().get('data', [])], None)
                 self.edr_ids_queue.put(data)
-                self.edrpou_codes_queue.get()
                 logger.info('Put tender {} {} {} to edr_ids_queue.'.format(tender_data.tender_id,
                                                                            tender_data.item_name,
                                                                            tender_data.item_id))
             else:
-                self.edrpou_codes_queue.get()
-                self.retry_edrpou_codes_queue.put(tender_data)  # Put tender to retry
                 self.handle_status_response(response, tender_data.tender_id)
                 logger.info('Put tender {} with {} id {} to retry_edrpou_codes_queue'.format(
                     tender_data.tender_id, tender_data.item_name, tender_data.item_id),
                     extra=journal_context(params={"TENDER_ID": tender_data.tender_id}))
+                self.retry_edrpou_codes_queue.put(tender_data)  # Put tender to retry
+            self.edrpou_codes_queue.get()
             gevent.sleep(0)
 
     def retry_get_edr_id(self):
