@@ -3,10 +3,10 @@ import requests
 from collections import namedtuple
 from pyramid.view import view_config
 from logging import getLogger
+from openprocurement.integrations.edr.utils import prepare_data_details, prepare_data
 
 LOGGER = getLogger(__name__)
 EDRDetails = namedtuple("EDRDetails", ['param', 'code'])
-identification_schema = u'UA-EDR'
 
 
 def handle_error(request, message):
@@ -17,16 +17,6 @@ def handle_error(request, message):
         "status": "error",
         "errors": request.errors
     }
-
-
-def prepare_data(data):
-    return {'id': data.get('id'),
-            'state': {'code': data.get('state'),
-                      'description': data.get('state_text')},
-            'identification': {'schema': identification_schema,
-                               'id': data.get('code'),
-                               'legalName': data.get('name'),
-                               'url': data.get('url')}}
 
 
 @view_config(route_name='verify', renderer='json',
@@ -58,3 +48,23 @@ def verify_user(request):
     else:
         return handle_error(request, response.json()['errors'])
 
+
+@view_config(route_name='details', renderer='json',
+             request_method='GET', permission='get_details')
+def user_details(request):
+    id = request.matchdict.get('id')
+    try:
+        response = request.registry.edr_client.get_subject_details(id)
+    except (requests.exceptions.ReadTimeout,
+            requests.exceptions.ConnectTimeout):
+        return handle_error(request, [{u'message': u'Gateway Timeout Error'}])
+    if response.status_code == 200:
+        data = response.json()
+        LOGGER.info('Return detailed data from EDR service for {}'.format(id))
+        return {'data': prepare_data_details(data)}
+    elif response.status_code == 429:
+        return handle_error(request, [{u'message': u'Retry request after {} seconds.'.format(response.headers.get('Retry-After'))}])
+    elif response.status_code == 502:
+        return handle_error(request, [{u'message': u'Service is disabled or upgrade.'}])
+    else:
+        return handle_error(request, response.json()['errors'])

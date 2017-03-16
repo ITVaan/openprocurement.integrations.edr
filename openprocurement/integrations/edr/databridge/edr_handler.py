@@ -183,7 +183,7 @@ class EdrHandler(Greenlet):
                 if response.status_code == 200:
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
-                                self.prepare_data(response.json().get('data', {})))
+                                response.json().get('data', {}))
                     self.upload_to_doc_service_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {}'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
@@ -219,7 +219,7 @@ class EdrHandler(Greenlet):
                 else:
                     data = Data(tender_data.tender_id, tender_data.item_id, tender_data.code,
                                 tender_data.item_name, tender_data.edr_ids,
-                                self.prepare_data(response.json().get('data', {})))
+                                response.json().get('data', {}))
                     self.upload_to_doc_service_queue.put(data)
                     logger.info('Successfully created file for tender {} {} {} in retry'.format(
                         tender_data.tender_id, tender_data.item_name, tender_data.item_id),
