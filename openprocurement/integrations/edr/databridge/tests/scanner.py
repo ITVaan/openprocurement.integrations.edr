@@ -58,7 +58,7 @@ class TestScannerWorker(unittest.TestCase):
         ]
 
         worker = Scanner.spawn(client, tender_queue)
-        sleep(4)
+        sleep(7)
 
         # Kill worker
         worker.shutdown()
