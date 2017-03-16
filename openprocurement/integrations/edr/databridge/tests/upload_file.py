@@ -132,7 +132,7 @@ class TestUploadFileWorker(unittest.TestCase):
         self.assertItemsEqual(processing_items.keys(), [award_id])
         self.assertEqual(upload_to_doc_service_queue.qsize(), 1)
         worker = UploadFile.spawn(client, upload_to_doc_service_queue, upload_to_tender_queue, processing_items, doc_service_client)
-        sleep(7)
+        sleep(15)
         worker.shutdown()
         self.assertEqual(upload_to_doc_service_queue.qsize(), 0, 'Queue should be empty')
         self.assertEqual(upload_to_tender_queue.qsize(), 0, 'Queue should be empty')
