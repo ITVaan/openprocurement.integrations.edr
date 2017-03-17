@@ -326,6 +326,17 @@ class TestScannerWorker(unittest.TestCase):
         self.assertEqual(Scanner.sleep_change_value, 0)
         Scanner.sleep_change_value = 0
 
+    @patch('gevent.sleep')
+    def test_kill_jobs_with_exception(self, gevent_sleep):
+        """Kill job and check Exception"""
+        gevent_sleep.side_effect = custom_sleep
+        worker = Scanner.spawn(MagicMock(), MagicMock(), 2, 1)
+        sleep(1)
+        for job in worker.jobs:
+            job.kill(exception=Exception)
+        sleep(4)
+        self.assertEqual(worker.ready(), False)
+
 
 
 

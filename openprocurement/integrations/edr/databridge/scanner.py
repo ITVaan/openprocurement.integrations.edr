@@ -79,8 +79,7 @@ class Scanner(Greenlet):
                         tender['procurementMethodType'] in self.pre_qualification_procurementMethodType):
                     yield tender
                 else:
-                    logger.info('Skipping tender {} with status {} with procurementMethodType {}'.format(
-                                    tender['id'], tender['status'], tender['procurementMethodType']),
+                    logger.info('Skipping tender {} with status {} with procurementMethodType {}'.format(tender['id'], tender['status'], tender['procurementMethodType']),
                                 extra=journal_context({"MESSAGE_ID": DATABRIDGE_INFO},
                                                       params={"TENDER_ID": tender['id']}))
             logger.info('Sleep {} sync...'.format(direction), extra=journal_context({"MESSAGE_ID": DATABRIDGE_SYNC_SLEEP}))
