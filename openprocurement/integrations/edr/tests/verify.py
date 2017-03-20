@@ -5,7 +5,7 @@ import os
 from openprocurement.integrations.edr.tests.base import BaseWebTest
 from openprocurement.integrations.edr.tests._server import (setup_routing, response_code, response_passport,
     check_headers, payment_required, forbidden, not_acceptable, too_many_requests, two_error_messages, bad_gateway,
-    server_error, response_details, too_many_requests_details, bad_gateway_details)
+    server_error, response_details, too_many_requests_details, bad_gateway_details, wrong_ip_address, wrong_ip_address_detailed_request)
 
 
 class TestVerify(BaseWebTest):
@@ -228,6 +228,13 @@ class TestVerify(BaseWebTest):
             test_yaml_data = f.read()
         self.assertEqual(response.body, test_yaml_data)
 
+    def test_wrong_ip(self):
+        setup_routing(self.edr_api_app, func=wrong_ip_address)
+        response = self.app.get('/verify?code=14360570', headers={'Accept': 'application/json'}, status=403)
+        self.assertEqual(response.status, '403 Forbidden')
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Forbidden'}])
+
 
 class TestDetails(BaseWebTest):
     """ Test details view """
@@ -297,6 +304,13 @@ class TestDetails(BaseWebTest):
         with open(os.path.join(os.path.dirname(__file__), 'test_data_details.yaml'), 'r') as f:
             test_yaml_data = f.read()
         self.assertEqual(response.body, test_yaml_data)
+
+    def test_wrong_ip_details(self):
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=wrong_ip_address_detailed_request)
+        response = self.app.get('/details/2842335', headers={'Accept': 'application/json'}, status=403)
+        self.assertEqual(response.status, '403 Forbidden')
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Forbidden'}])
 
 
 class TestVerifyPlatform(TestVerify):
