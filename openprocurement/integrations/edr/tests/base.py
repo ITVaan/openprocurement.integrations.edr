@@ -16,7 +16,7 @@ class BaseWebTest(unittest.TestCase):
     def setUpClass(cls):
         cls.edr_api_app = Bottle()
         # setup_routing(cls.edr_api_app)
-        cls.server = WSGIServer(('localhost', 20603), cls.edr_api_app, log=None)
+        cls.server = WSGIServer(('127.0.0.1', 20604), cls.edr_api_app, log=None)
         cls.server.start()
         for _ in range(10):
             try:
