@@ -21,7 +21,7 @@ before_install:
 install:
   - bin/buildout -N
 script:
-  - travis_wait 30 bin/nosetests
+  -  bin/nosetests
 after_success:
   - bin/coveralls
 notifications:
