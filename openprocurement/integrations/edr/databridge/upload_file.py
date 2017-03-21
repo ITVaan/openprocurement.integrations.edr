@@ -55,7 +55,7 @@ class UploadFile(Greenlet):
     def upload_to_doc_service(self):
         """Get data from upload_to_doc_service_queue; Create file of the Data.file_content data; If upload successful put Data
         object to upload_file_to_tender, otherwise put Data to retry_upload_file_queue."""
-        while True:
+        while not self.exit:
             tender_data = self.upload_to_doc_service_queue.get()
             try:
                 response = self.doc_service_client.upload(create_file(tender_data.file_content))
@@ -89,7 +89,7 @@ class UploadFile(Greenlet):
     def retry_upload_to_doc_service(self):
         """Get data from retry_upload_to_doc_service_queue; If upload were successful put Data obj to
         upload_to_tender_queue, otherwise put Data obj back to retry_upload_file_queue"""
-        while True:
+        while not self.exit:
             tender_data = self.retry_upload_to_doc_service_queue.get()
             try:
                 # create patch request to award/qualification with document to upload
@@ -130,7 +130,7 @@ class UploadFile(Greenlet):
         """Get data from upload_to_tender_queue; Upload get_Url and documentType;
         If upload to tender were unsuccessful put Data object to retry_upload_to_tender_queue, otherwise delete given
         award/qualification from processing_items."""
-        while True:
+        while not self.exit:
             tender_data = self.upload_to_tender_queue.get()
             document_data = tender_data.file_content
             document_data["documentType"] = "registerExtract"
@@ -157,7 +157,7 @@ class UploadFile(Greenlet):
     def retry_upload_to_tender(self):
         """Get data from retry_upload_to_tender_queue; If upload was unsuccessful put Data obj back to
         retry_upload_to_tender_queue"""
-        while True:
+        while not self.exit:
             tender_data = self.retry_upload_to_tender_queue.get()
             try:
                 self.client_upload_to_tender(tender_data)
