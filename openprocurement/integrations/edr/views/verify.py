@@ -34,6 +34,8 @@ def verify_user(request):
     except (requests.exceptions.ReadTimeout,
             requests.exceptions.ConnectTimeout):
         return handle_error(request, [{u'message': u'Gateway Timeout Error'}])
+    if response.headers['Content-Type'] != 'application/json':
+        return handle_error(request, [{u'message': u'Forbidden'}])
     if response.status_code == 200:
         data = response.json()
         if not data:
@@ -58,6 +60,8 @@ def user_details(request):
     except (requests.exceptions.ReadTimeout,
             requests.exceptions.ConnectTimeout):
         return handle_error(request, [{u'message': u'Gateway Timeout Error'}])
+    if response.headers['Content-Type'] != 'application/json':
+        return handle_error(request, [{u'message': u'Forbidden'}])
     if response.status_code == 200:
         data = response.json()
         LOGGER.info('Return detailed data from EDR service for {}'.format(id))

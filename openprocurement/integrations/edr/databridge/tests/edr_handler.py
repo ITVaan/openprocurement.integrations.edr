@@ -375,4 +375,32 @@ class TestEdrHandlerWorker(unittest.TestCase):
         self.assertEqual(mrequest.request_history[2].url, u'127.0.0.1:80/details/321')
         self.assertEqual(mrequest.request_history[3].url, u'127.0.0.1:80/details/321')
 
+    @requests_mock.Mocker()
+    @patch('gevent.sleep')
+    def test_wrong_ip(self, mrequest, gevent_sleep):
+        gevent_sleep.side_effect = custom_sleep
+        proxy_client = ProxyClient(host='127.0.0.1', port='80', token='')
+        mrequest.get("{url}".format(url=proxy_client.verify_url),
+                     [{'json': {'errors': [{'description': [{u'message': u'Forbidden'}]}]}, 'status_code': 403},
+                      {'json': {'data': [{'id': 321}]}, 'status_code': 200}])
+        mrequest.get("{url}/{id}".format(url=proxy_client.details_url, id=321),
+                     [{'json': {'errors': [{'description': [{u'message': u'Forbidden'}]}]},'status_code': 403},
+                      {'json': {'data': {'id': 321}}, 'status_code': 200}])
+        edrpou_codes_queue = Queue(10)
+        edr_ids_queue = Queue(10)
+        upload_to_doc_service_queue = Queue(10)
+        edrpou_codes_queue.put(Data(uuid.uuid4().hex, 'award_id', '123', "awards", None, None))
+        worker = EdrHandler.spawn(proxy_client, edrpou_codes_queue, edr_ids_queue, upload_to_doc_service_queue)
+        sleep(5)
+        worker.shutdown()
+        self.assertEqual(edrpou_codes_queue.qsize(), 0)
+        self.assertEqual(edr_ids_queue.qsize(), 0)
+        self.assertEqual(upload_to_doc_service_queue.qsize(), 1)
+        self.assertEqual(mrequest.call_count, 4)
+        self.assertEqual(mrequest.request_history[0].url, u'127.0.0.1:80/verify?code=123')
+        self.assertEqual(mrequest.request_history[1].url, u'127.0.0.1:80/verify?code=123')
+        self.assertEqual(mrequest.request_history[2].url, u'127.0.0.1:80/details/321')
+        self.assertEqual(mrequest.request_history[3].url, u'127.0.0.1:80/details/321')
+
+
 
