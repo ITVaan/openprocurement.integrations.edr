@@ -24,7 +24,7 @@ from openprocurement.integrations.edr.databridge.scanner import Scanner
 from openprocurement.integrations.edr.databridge.filter_tender import FilterTenders
 from openprocurement.integrations.edr.databridge.edr_handler import EdrHandler
 from openprocurement.integrations.edr.databridge.upload_file import UploadFile
-from openprocurement.integrations.edr.databridge.utils import journal_context, generate_req_id, Data, create_file
+from openprocurement.integrations.edr.databridge.utils import journal_context
 from openprocurement.integrations.edr.databridge.journal_msg_ids import (
     DATABRIDGE_RESTART_WORKER, DATABRIDGE_START
 )
@@ -55,7 +55,8 @@ class EdrDataBridge(object):
                                        port=self.config_get('proxy_port'))
         self.doc_service_client = DocServiceClient(host=self.config_get('doc_service_server'),
                                                    port=self.config_get('doc_service_port'),
-                                                   token=self.config_get('doc_service_token'))
+                                                   user=self.config_get('doc_service_user'),
+                                                   password=self.config_get('doc_service_password'))
 
         # init queues for workers
         self.filtered_tender_ids_queue = Queue(maxsize=buffers_size)  # queue of tender IDs with appropriate status
