@@ -36,13 +36,14 @@ class TestScannerWorker(unittest.TestCase):
         gevent_sleep.side_effect = custom_sleep
         tender_queue = Queue(10)
         client = MagicMock()
+        tenders_id = [uuid.uuid4().hex, uuid.uuid4().hex]
         client.sync_tenders.side_effect = [
             RequestFailed(),
             # worker must restart
             munchify({'prev_page': {'offset': '123'},
                       'next_page': {'offset': '1234'},
                       'data': [{'status': "active.qualification",
-                                "id": uuid.uuid4().hex,
+                                "id": tenders_id[0],
                                 'procurementMethodType': 'aboveThresholdUA'}]}),
             Unauthorized(),
             munchify({'prev_page': {'offset': '123'},
@@ -53,18 +54,17 @@ class TestScannerWorker(unittest.TestCase):
             munchify({'prev_page': {'offset': '123'},
                       'next_page': {'offset': '1234'},
                       'data': [{'status': "active.pre-qualification",
-                                "id": uuid.uuid4().hex,
+                                "id": tenders_id[1],
                                 'procurementMethodType': 'aboveThresholdEU'}]})
         ]
 
+
         worker = Scanner.spawn(client, tender_queue)
-        sleep(7)
+        self.assertEqual([tender_queue.get() for x in range(2)], tenders_id)
 
         # Kill worker
         worker.shutdown()
         del worker
-
-        self.assertEqual(tender_queue.qsize(), 2)
 
     @patch('gevent.sleep')
     def test_425(self, gevent_sleep):
