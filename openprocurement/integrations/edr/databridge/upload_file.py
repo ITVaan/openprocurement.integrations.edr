@@ -122,7 +122,7 @@ class UploadFile(Greenlet):
     @retry(stop_max_attempt_number=5, wait_exponential_multiplier=1000)
     def client_upload_to_doc_service(self, tender_data):
         """Process upload request for retry queue objects."""
-        return self.doc_service_client.upload('edr_request.json', create_file(tender_data.file_content), 'application/json')
+        return self.doc_service_client.upload('edr_request.yaml', create_file(tender_data.file_content), 'application/yaml')
 
     def upload_to_tender(self):
         """Get data from upload_to_tender_queue; Upload get_Url and documentType;
