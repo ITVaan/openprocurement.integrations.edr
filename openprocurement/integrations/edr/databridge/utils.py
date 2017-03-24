@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import io
-import json
+import yaml
 from uuid import uuid4
 from collections import namedtuple
 
@@ -36,7 +36,7 @@ def create_file(details):
     """ Return temp file with details """
     temporary_file = io.BytesIO()
     temporary_file.name = 'edr_request.json'
-    temporary_file.write(json.dumps(details, indent=4, separators=(',', ': '), ensure_ascii=False).encode('utf-8'))
+    temporary_file.write(yaml.safe_dump(details, allow_unicode=True, default_flow_style=False))
     temporary_file.seek(0)
 
     return temporary_file
