@@ -175,7 +175,7 @@ class TestBridgeWorker(BaseServersTest):
         setup_routing(self.doc_server_bottle, upload_doc_service, path='/upload', method='POST')
         setup_routing(self.api_server_bottle, upload_api,
                       path='/api/0/tenders/{}/awards/{}/documents'.format(tender_id, award_id), method='POST')
-        with gevent.Timeout(1, False):
+        with gevent.Timeout(2, False):
             worker = EdrDataBridge(config).run()
             self.assertIsNotNone(worker.jobs)
             worker.shutdown()
