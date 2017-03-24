@@ -9,13 +9,11 @@ import gevent
 
 from gevent.pywsgi import WSGIServer
 from bottle import Bottle, request, response
-from mock import patch
 from munch import munchify
 
 from openprocurement.integrations.edr.databridge.bridge import EdrDataBridge
 from openprocurement_client.client import TendersClientSync, TendersClient
 from openprocurement.integrations.edr.client import DocServiceClient, ProxyClient
-from openprocurement.integrations.edr.databridge.tests.utils import custom_sleep
 
 
 config = {
