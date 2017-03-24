@@ -7,11 +7,9 @@ import os
 import uuid
 import gevent
 
-from gevent import monkey; monkey.patch_all()
 from gevent.pywsgi import WSGIServer
 from bottle import Bottle, request, response
-from time import sleep
-from mock import patch, MagicMock
+from mock import patch
 from munch import munchify
 
 from openprocurement.integrations.edr.databridge.bridge import EdrDataBridge
@@ -164,9 +162,7 @@ class TestBridgeWorker(BaseServersTest):
 
         del worker
 
-    @patch('gevent.sleep')
-    def test_run(self, gevent_sleep):
-        gevent_sleep.side_effect = custom_sleep
+    def test_run(self):
         setup_routing(self.api_server_bottle, response_spore)
         setup_routing(self.api_server_bottle, sync_tenders, path='/api/0/tenders')
         setup_routing(self.api_server_bottle, get_tender, path='/api/0/tenders/{}'.format(tender_id))
