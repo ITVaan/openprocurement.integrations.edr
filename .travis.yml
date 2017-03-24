@@ -9,7 +9,6 @@ before_script:
 env:
   global:
     - TZ=Europe/Kiev
-    - ISOLATED=true
   matrix:
     - SANDBOX_MODE=
     - SANDBOX_MODE=True

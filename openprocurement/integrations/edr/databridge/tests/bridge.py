@@ -71,7 +71,7 @@ class BaseServersTest(unittest.TestCase):
         cls.proxy_server.close()
 
     def tearDown(self):
-        pass
+        del self.worker
 
 
 def setup_routing(app, func, path='/api/0/spore', method='GET'):
@@ -93,85 +93,24 @@ def sync_tenders():
                                'procurementMethodType': 'aboveThresholdUA'}]})
 
 
-def get_tender():
-    return munchify(
-                {'prev_page': {'offset': '123'},
-                 'next_page': {'offset': '1234'},
-                 'data': {
-                     'status': "active.pre-qualification",
-                     'id': tender_id,
-                     'procurementMethodType': 'aboveThresholdEU',
-                     'awards': [
-                         {'id': award_id,
-                          'status': 'pending',
-                          'suppliers': [
-                              {'identifier': {'scheme': 'UA-EDR',
-                                              'id': edrpou}
-                               }]
-                          }
-                      ]
-                  }})
-
-
-def verify():
-    return munchify({'data': [{'id': '321'}]})
-
-
-def details():
-    return munchify({'data': {}})
-
-
-def upload_doc_service():
-    return munchify({'data': {'url': 'http://docs-sandbox.openprocurement.org/get/8ccbfde0c6804143b119d9168452cb6f',
-                              'format': 'application/yaml',
-                              'hash': 'md5:9a0364b9e99bb480dd25e1f0284c8555',
-                              'title': 'edr_request.yaml'}})
-
-
-def upload_api():
-    response.status = 201
-    return munchify({'data': {'id': uuid.uuid4().hex,
-                              'documentOf': 'tender',
-                              'documentType': 'registerExtract',
-                              'url': 'url'}})
-
-
 class TestBridgeWorker(BaseServersTest):
 
     def test_init(self):
         setup_routing(self.api_server_bottle, response_spore)
-        worker = EdrDataBridge(config)
-        self.assertEqual(worker.delay, 15)
-        self.assertEqual(worker.increment_step, 1)
-        self.assertEqual(worker.decrement_step, 1)
+        self.worker = EdrDataBridge(config)
+        self.assertEqual(self.worker.delay, 15)
+        self.assertEqual(self.worker.increment_step, 1)
+        self.assertEqual(self.worker.decrement_step, 1)
 
         # check clients
-        self.assertTrue(isinstance(worker.tenders_sync_client, TendersClientSync))
-        self.assertTrue(isinstance(worker.client, TendersClient))
-        self.assertTrue(isinstance(worker.proxyClient, ProxyClient))
-        self.assertTrue(isinstance(worker.doc_service_client, DocServiceClient))
+        self.assertTrue(isinstance(self.worker.tenders_sync_client, TendersClientSync))
+        self.assertTrue(isinstance(self.worker.client, TendersClient))
+        self.assertTrue(isinstance(self.worker.proxyClient, ProxyClient))
+        self.assertTrue(isinstance(self.worker.doc_service_client, DocServiceClient))
 
         # check events
-        self.assertFalse(worker.initialization_event.is_set())
-        self.assertTrue(worker.until_too_many_requests_event.is_set())
+        self.assertFalse(self.worker.initialization_event.is_set())
+        self.assertTrue(self.worker.until_too_many_requests_event.is_set())
 
         # check processing items
-        self.assertEqual(worker.processing_items, {})
-
-        del worker
-
-    def test_run(self):
-        setup_routing(self.api_server_bottle, response_spore)
-        setup_routing(self.api_server_bottle, sync_tenders, path='/api/0/tenders')
-        setup_routing(self.api_server_bottle, get_tender, path='/api/0/tenders/{}'.format(tender_id))
-        setup_routing(self.proxy_server_bottle, verify, path='/verify')
-        setup_routing(self.proxy_server_bottle, details, path='/details/{}'.format(edr_id))
-        setup_routing(self.doc_server_bottle, upload_doc_service, path='/upload', method='POST')
-        setup_routing(self.api_server_bottle, upload_api,
-                      path='/api/0/tenders/{}/awards/{}/documents'.format(tender_id, award_id), method='POST')
-        with gevent.Timeout(2, False):
-            worker = EdrDataBridge(config).run()
-            self.assertIsNotNone(worker.jobs)
-            worker.shutdown()
-            self.assertEqual(worker.exit, True)
-            del worker
+        self.assertEqual(self.worker.processing_items, {})
