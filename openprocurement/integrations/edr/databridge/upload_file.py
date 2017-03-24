@@ -56,7 +56,7 @@ class UploadFile(Greenlet):
         while not self.exit:
             tender_data = self.upload_to_doc_service_queue.get()
             try:
-                response = self.doc_service_client.upload('edr_request.json', create_file(tender_data.file_content), 'application/json')
+                response = self.doc_service_client.upload('edr_request.yaml', create_file(tender_data.file_content), 'application/yaml')
             except Exception as e:
                 logger.warning('Exception while uploading file to doc service {} {} {}. Message: {}. '
                                'Lost tender_data'.format(tender_data.tender_id, tender_data.item_name,
