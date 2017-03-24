@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
-from gevent import monkey
-monkey.patch_all()
 
 import unittest
 import os
 import uuid
-import gevent
 
 from gevent.pywsgi import WSGIServer
 from bottle import Bottle, request, response
-from munch import munchify
 
 from openprocurement.integrations.edr.databridge.bridge import EdrDataBridge
 from openprocurement_client.client import TendersClientSync, TendersClient
@@ -32,14 +28,9 @@ config = {
             'full_stack_sync_delay': 15,
             'empty_stack_sync_delay': 101,
             'on_error_sleep_delay': 5,
-            'api_token': "edrapi_secret"
+            'api_token': "api_token"
         }
 }
-
-tender_id = uuid.uuid4().hex
-award_id = uuid.uuid4().hex
-edrpou = '14360570'
-edr_id = '321'
 
 
 class BaseServersTest(unittest.TestCase):
@@ -83,14 +74,6 @@ def response_spore():
                                       "8cf9b7adf0fae467a524747e3c6c6973262130fac2b"
                                       "96a11693fa8bd38623e4daee121f60b4301aef012c"))
     return response
-
-
-def sync_tenders():
-    return munchify({'prev_page': {'offset': '123'},
-                     'next_page': {'offset': '1234'},
-                     'data': [{'status': "active.qualification",
-                               'id': tender_id,
-                               'procurementMethodType': 'aboveThresholdUA'}]})
 
 
 class TestBridgeWorker(BaseServersTest):
