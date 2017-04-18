@@ -2,11 +2,13 @@
 import webtest
 import os
 
-from openprocurement.integrations.edr.tests.base import BaseWebTest
+from openprocurement.integrations.edr.tests.base import BaseWebTest, PrefixedRequestClass
 from openprocurement.integrations.edr.tests._server import (setup_routing, response_code, response_passport,
-    check_headers, payment_required, forbidden, not_acceptable, too_many_requests, two_error_messages, bad_gateway,
-    server_error, response_details, too_many_requests_details, bad_gateway_details, wrong_ip_address,
-    wrong_ip_address_detailed_request, null_fields)
+                                                            check_headers, payment_required, forbidden, not_acceptable,
+                                                            too_many_requests, two_error_messages, bad_gateway,
+                                                            server_error, response_details, too_many_requests_details,
+                                                            bad_gateway_details, wrong_ip_address,
+                                                            wrong_ip_address_detailed_request, null_fields)
 
 
 class TestVerify(BaseWebTest):
@@ -41,7 +43,7 @@ class TestVerify(BaseWebTest):
                              "name": "permission",
                              "description": "Forbidden"
                          }]
-        )
+                         )
         self.app.authorization = old
 
     def test_edrpou(self):
@@ -54,11 +56,11 @@ class TestVerify(BaseWebTest):
             response.json['data'],
             [{u'state': {u'registrationStatusDetails': u'зареєстровано',
                          u'registrationStatus': u'registered'},
-             u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842335',
-                                 u'schema': u'UA-EDR',
-                                 u'id': u'14360570',
-                                 u'legalName': u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
-             u'x_edrInternalId': 2842335}])
+              u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842335',
+                                  u'schema': u'UA-EDR',
+                                  u'id': u'14360570',
+                                  u'legalName': u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
+              u'x_edrInternalId': 2842335}])
 
     def test_passport(self):
         """ Get info by passport number """
@@ -70,11 +72,11 @@ class TestVerify(BaseWebTest):
             response.json['data'],
             [{u'state': {u'registrationStatusDetails': u'зареєстровано',
                          u'registrationStatus': u'registered'},
-             u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842336',
-                                 u'schema': u'UA-EDR',
-                                 u'id': u'СН012345',
-                                 u'legalName': u'СН012345'},
-             u'x_edrInternalId': 2842336}])
+              u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842336',
+                                  u'schema': u'UA-EDR',
+                                  u'id': u'СН012345',
+                                  u'legalName': u'СН012345'},
+              u'x_edrInternalId': 2842336}])
 
     def test_new_passport(self):
         """ Get info by new passport number with 13-digits"""
@@ -86,11 +88,11 @@ class TestVerify(BaseWebTest):
             response.json['data'],
             [{u'state': {u'registrationStatusDetails': u'зареєстровано',
                          u'registrationStatus': u'registered'},
-             u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842336',
-                                 u'schema': u'UA-EDR',
-                                 u'id': u'123456789',
-                                 u'legalName': u'123456789'},
-             u'x_edrInternalId': 2842336}])
+              u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842336',
+                                  u'schema': u'UA-EDR',
+                                  u'id': u'123456789',
+                                  u'legalName': u'123456789'},
+              u'x_edrInternalId': 2842336}])
 
     def test_ipn(self):
         """ Get info by IPN (physical entity-entrepreneur)"""
@@ -101,10 +103,10 @@ class TestVerify(BaseWebTest):
         self.assertEqual(response.json['data'],
                          [{u'state': {u'registrationStatusDetails': u'зареєстровано',
                                       u'registrationStatus': u'registered'},
-                          u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842335',
-                                              u'schema': u'UA-EDR', u'id': u'1234567891',
-                                              u'legalName': u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
-                          u'x_edrInternalId': 2842335}])
+                           u'identification': {u'url': u'https://zqedr-api.nais.gov.ua/1.0/subjects/2842335',
+                                               u'schema': u'UA-EDR', u'id': u'1234567891',
+                                               u'legalName': u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
+                           u'x_edrInternalId': 2842335}])
 
     def test_invalid_passport(self):
         """Check invalid passport number АБВ"""
@@ -128,6 +130,7 @@ class TestVerify(BaseWebTest):
         setup_routing(self.edr_api_app, func=check_headers)
         self.app_copy = webtest.TestApp("config:test_conf/tests_copy.ini", relative_to=os.path.dirname(__file__))
         self.app_copy.authorization = ('Basic', ('robot', 'robot'))
+        self.app_copy.RequestClass = PrefixedRequestClass
         response = self.app_copy.get('/verify?id=123', status=403)
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status, '403 Forbidden')
@@ -155,6 +158,7 @@ class TestVerify(BaseWebTest):
         """Send request with invalid token 123 using new tests_copy_2.ini conf file"""
         setup_routing(self.edr_api_app, func=check_headers)
         self.app_copy = webtest.TestApp("config:test_conf/tests_copy_2.ini", relative_to=os.path.dirname(__file__))
+        self.app_copy.RequestClass = PrefixedRequestClass
         self.app_copy.authorization = ('Basic', ('robot', 'robot'))
         response = self.app_copy.get('/verify?id=123', status=403)
         self.assertEqual(response.content_type, 'application/json')
@@ -253,7 +257,8 @@ class TestDetails(BaseWebTest):
                  u"description": u"Інші види кредитування"},
                 {u"scheme": u"КВЕД",
                  u"id": u"64.99",
-                 u"description": u"Надання інших фінансових послуг (крім страхування та пенсійного забезпечення), н. в. і. у."},
+                 u"description": u"Надання інших фінансових послуг (крім страхування та пенсійного забезпечення), "
+                                 u"н. в. і. у."},
                 {u"scheme": u"КВЕД",
                  u"id": u"66.11",
                  u"description": u"Управління фінансовими ринками"},
@@ -262,23 +267,24 @@ class TestDetails(BaseWebTest):
                  u"description": u"Посередництво за договорами по цінних паперах або товарах"},
                 {u"scheme": u"КВЕД",
                  u"id": u"66.19",
-                 u"description": u"Інша допоміжна діяльність у сфері фінансових послуг, крім страхування та пенсійного забезпечення"}],
+                 u"description": u"Інша допоміжна діяльність у сфері фінансових послуг, крім страхування та "
+                                 u"пенсійного забезпечення"}],
             u"management": u"ЗАГАЛЬНІ ЗБОРИ",
             u"name": u"ПАТ КБ \"ПРИВАТБАНК\"",
             u"identification": {u"scheme": u"UA-EDR",
-                               u"id": u"14360570",
-                               u"legalName": u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
+                                u"id": u"14360570",
+                                u"legalName": u"АКЦІОНЕРНЕ ТОВАРИСТВО КОМЕРЦІЙНИЙ БАНК \"ПРИВАТБАНК\""},
             u"address": {u"postalCode": u"49094",
-                        u"countryName": u"УКРАЇНА",
-                        u"streetAddress": u"Дніпропетровська обл., місто Дніпропетровськ, Жовтневий район"},
+                         u"countryName": u"УКРАЇНА",
+                         u"streetAddress": u"Дніпропетровська обл., місто Дніпропетровськ, Жовтневий район"},
             u"founders": [{
-                          u"role_text": u"засновник",
-                          u"role": 4,
-                          u"name": u"АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ",
-                         }],
+                u"role_text": u"засновник",
+                u"role": 4,
+                u"name": u"АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ",
+            }],
             u"activityKind": {u"scheme": u"КВЕД",
-                             u"id": u"64.19",
-                             u"description": u"Інші види грошового посередництва"}
+                              u"id": u"64.19",
+                              u"description": u"Інші види грошового посередництва"}
         })
 
     def test_too_many_requests_details(self):
@@ -298,7 +304,7 @@ class TestDetails(BaseWebTest):
         self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Service is disabled or upgrade.'}])
 
     def test_accept_yaml_details(self):
-        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335',func=response_details)
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=response_details)
         response = self.app.get('/details/2842335', headers={'Accept': 'application/yaml'})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.content_type, 'application/yaml')
@@ -327,17 +333,15 @@ class TestDetails(BaseWebTest):
                          u"countryName": u"УКРАЇНА",
                          u"streetAddress": u"Дніпропетровська обл., місто Дніпропетровськ, Жовтневий район"},
             u"founders": [{
-                          u"role_text": u"засновник",
-                          u"role": 4,
-                          u"name": u"АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ",
-                         }],
+                u"role_text": u"засновник",
+                u"role": 4,
+                u"name": u"АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ",
+            }],
             u"activityKind": {u"scheme": u"КВЕД",
                               u"id": u"64.19",
                               u"description": u"Інші види грошового посередництва"}})
 
 
 class TestVerifyPlatform(TestVerify):
-
     def setUp(self):
         self.app.authorization = ('Basic', ('platform', 'platform'))
-

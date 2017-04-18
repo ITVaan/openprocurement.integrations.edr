@@ -17,6 +17,7 @@ LOGGER = getLogger(PKG.project_name)
 VERSION = '{}.{}'.format(int(PKG.parsed_version[0]), int(PKG.parsed_version[1]) if PKG.parsed_version[1].isdigit() else 0)
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 USERS = {}
+ROUTE_PREFIX = '/api/{}'.format(VERSION)
 identification_schema = u'UA-EDR'
 activityKind_scheme = u'КВЕД'
 
