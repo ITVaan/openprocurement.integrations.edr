@@ -5,6 +5,9 @@ Host: api-sandbox.openprocurement.org
 Response: 200 OK
 Content-Type: application/json; charset=UTF-8
 {
+  "meta": {
+    "sourceDate": "2017-04-25T11:56:36+00:00"
+  }, 
   "data": {
     "additionalActivityKinds": [
       {
@@ -49,9 +52,7 @@ Content-Type: application/json; charset=UTF-8
       {
         "role_text": "засновник", 
         "role": 4, 
-        "name": "АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ", 
-        "address": null, 
-        "capital": null
+        "name": "АКЦІОНЕРИ - ЮРИДИЧНІ ТА ФІЗИЧНІ ОСОБИ"
       }
     ], 
     "activityKind": {

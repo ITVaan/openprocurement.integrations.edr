@@ -1,8 +1,8 @@
-GET /api/1.0/verify?id=123 HTTP/1.0
+GET /api/1.0/verify HTTP/1.0
 Authorization: Basic cGxhdGZvcm06cGxhdGZvcm0=
 Host: api-sandbox.openprocurement.org
 
-Response: 404 Not Found
+Response: 403 Forbidden
 Content-Type: application/json; charset=UTF-8
 {
   "status": "error", 
@@ -10,13 +10,7 @@ Content-Type: application/json; charset=UTF-8
     {
       "description": [
         {
-          "meta": {
-            "sourceDate": "2017-04-25T11:56:36+00:00"
-          }, 
-          "error": {
-            "errorDetails": "Couldn't find this code in EDR.", 
-            "code": "notFound"
-          }
+          "message": "Need pass id or passport"
         }
       ], 
       "name": "data", 

@@ -1,0 +1,113 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2015, Quintagroup, Ltd
+# This file is distributed under the same license as the
+# openprocurement.integrations.edr package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2017.
+
+msgid ""
+msgstr ""
+"Project-Id-Version: openprocurement.integrations.edr 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-05-24 12:24+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.3.4\n"
+
+#: ../../source/bot.rst:4
+msgid "Identification Bot"
+msgstr "Ідентифікація за допомогою бота"
+
+#: ../../source/bot.rst:7
+msgid "File-reference"
+msgstr "Файл-довідка"
+
+#: ../../source/bot.rst:8
+msgid ""
+"There are another endpoint `/details/x_edrInternalId` to process request "
+"to EDR to get detailed information using parameter `x_edrInternalId`, "
+"received in first response. Only user from group `robot` have permissions"
+" to process given request. Request looks like:"
+msgstr ""
+"Існує також інша вхідна точка `/details/x_edrInternalId` для здійснення "
+"запитів до ЕДР для отримання деталізованної  інформації, використовуючи "
+"параметр `x_edrInternalId`, який надходить у відповідь на перший запит. "
+"Тільки користувач з группи `robot` має права на  здійснення данного "
+"запиту. Запит має  наступний вигляд: "
+
+#: ../../source/bot.rst:15
+msgid ""
+"File-reference name  is `edr_identification.yaml` and is uploaded to "
+"tenders with status ` active.pre-qualification` and "
+"`procurementMethodType: aboveThresholdEU, competitiveDialogueUA, "
+"competitiveDialogueEU` and tender with status `active.qualification` with"
+" `procurementMethodType: aboveThresholdUA, aboveThresholdUA.defense, "
+"aboveThresholdEU, competitiveDialogueUA.stage2, "
+"competitiveDialogueEU.stage2`. Field `identifier.scheme` should have "
+"value `UA-EDR`. File-reference is uploaded to `award/qualification` with "
+"`pending` status and contains field `documentType: registerExtract`. If "
+"`identifier:id` is not found in EDR, then file will include next error "
+"`{error: {code: notFound, errorDetails: Couldn't find this code in "
+"EDR.}}`."
+msgstr ""
+"Файл-довідка має назву `edr_identification.yaml`  та завантажується "
+"окремою компонентою при  настанні статусу` active.pre-qualification`   "
+"для тендерів з `procurementMethodType:  aboveThresholdEU, "
+"competitiveDialogueUA,  competitiveDialogueEU` та ` active.qualification`"
+"  для тендерів з `procurementMethodType:  aboveThresholdUA, "
+"aboveThresholdUA.defense,  aboveThresholdEU, "
+"competitiveDialogueUA.stage2,  competitiveDialogueEU.stage2`  за умови, "
+"що  identifier.scheme  має значення `UA-EDR`.  Витяг завантажується в "
+"об'єкт  `award/qualification` зі статусом `pending` та має тип "
+"`documentType: registerExtract`.  Якщо `identifier:id` не знайдено в  "
+"Єдиному Державному реєстрі, то файл  містить наступну помилку  `{error: "
+"{code:  notFound, errorDetails: Couldn't find this  code in EDR.}}`."
+
+#: ../../source/bot.rst:23
+msgid "File-reference also includes service information in `meta`."
+msgstr "Також файл містить службову інформацію в блоці `meta`."
+
+#: ../../source/bot.rst:25
+msgid "`author` - author of file-reference, have value `IdentificationBot`,"
+msgstr "`author` - автор файлу-довідки, має значення `IdentificationBot`,"
+
+#: ../../source/bot.rst:26
+msgid "`id` - unique identifier of file-reference,"
+msgstr "`id` - унікальний ідентифікатор довідки,"
+
+#: ../../source/bot.rst:27
+msgid "`sourceDate` - creation date,"
+msgstr "`sourceDate` - дата відповіді від Єдиного Державного реєстру,"
+
+#: ../../source/bot.rst:28
+msgid "`sourceRequests` - list of request numbers to `API`, `EDR-proxy`,"
+msgstr ""
+"`sourceRequests` -список з номерами запитів до `API`, `EDR-proxy`, за "
+"допомогою яких було сформовано довідку,"
+
+#: ../../source/bot.rst:29
+msgid "`version` - file-reference format version."
+msgstr ""
+"`version` - версію формату довідки."
+
+#: ../../source/bot.rst:31
+msgid ""
+"Value `meta.version` now have value 1.1.1. First number - major version "
+"(delete field, rename, remove), second number - minor version (add "
+"field), third number - bugfix version (changes that do not change fields,"
+" but fix bugs). For example, changing of file-reference name from "
+"`edr_request.yaml` to `edr_identification.yaml` increased first "
+"number(major version), adding `meta.author` field increased second number"
+" (minor version)."
+msgstr ""
+"Значення поля `meta.version` зараз дорівнює 1.1.1. Перше число відповідає"
+" за  major версію (наприклад видалення елемента, перейменування, "
+"переміщення), друге число  відповідає за minor версію  (додавання  "
+"додаткових атрибутів), третє - bugfix  версія (зміни, що не змінюють "
+"об'єм   чи атрибути інформації, але виправляють  помилки). Наприклад "
+"зміна назви файлу з `edr_request.yaml`  на `edr_identification.yaml`  це "
+"збільшення major версії, а додавання поля `meta.author`  це збільшення "
+"minor версії."

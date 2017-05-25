@@ -5,13 +5,14 @@ Host: api-sandbox.openprocurement.org
 Response: 200 OK
 Content-Type: application/json; charset=UTF-8
 {
+  "meta": {
+    "sourceDate": "2017-04-25T11:56:36+00:00"
+  }, 
   "data": [
     {
+      "registrationStatusDetails": "зареєстровано", 
       "x_edrInternalId": 2842335, 
-      "state": {
-        "registrationStatusDetails": "зареєстровано", 
-        "registrationStatus": "registered"
-      }, 
+      "registrationStatus": "registered", 
       "identification": {
         "url": "https://zqedr-api.nais.gov.ua/1.0/subjects/2842335", 
         "schema": "UA-EDR", 

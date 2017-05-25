@@ -5,7 +5,7 @@ from json import dumps
 from pkg_resources import get_distribution
 from webob.multidict import NestedMultiDict
 from datetime import datetime
-from pytz import timezone
+from pytz import timezone, UTC
 from hashlib import sha512
 from ConfigParser import ConfigParser
 from pyramid.security import Allow
@@ -20,6 +20,7 @@ USERS = {}
 ROUTE_PREFIX = '/api/{}'.format(VERSION)
 identification_schema = u'UA-EDR'
 activityKind_scheme = u'КВЕД'
+SANDBOX_MODE = os.environ.get('SANDBOX_MODE', False)
 
 
 class Root(object):
@@ -177,8 +178,8 @@ registration_status_by_code = lambda x: registration_statuses.get(x, 'other')
 
 def prepare_data(data):
     return {'x_edrInternalId': data.get('id'),
-            'state': {'registrationStatus': registration_status_by_code(data.get('state')),
-                      'registrationStatusDetails': data.get('state_text')},
+            'registrationStatus': registration_status_by_code(data.get('state')),
+            'registrationStatusDetails': data.get('state_text'),
             'identification': {'schema': identification_schema,
                                'id': data.get('code'),
                                'legalName': data.get('name'),
@@ -191,7 +192,7 @@ def forbidden(request):
 
 
 def prepare_data_details(data):
-    founders = data.get('founders')
+    founders = data.get('founders', [])
     for founder in founders:
         founder['address'] = get_address(founder)
     additional_activity_kinds = []
@@ -234,3 +235,21 @@ def remove_null_fields(data):
         if not data[k]:
             del data[k]
     return data
+
+
+def read_json(name):
+    import os.path
+    from json import loads
+    curr_dir = os.path.dirname(os.path.realpath(__file__))
+    file_path = os.path.join(curr_dir, name)
+    with open(file_path) as lang_file:
+        data = lang_file.read()
+    return loads(data)
+
+TEST_DATA_VERIFY = read_json('test_data_verify.json')
+TEST_DATA_DETAILS = read_json('test_data_details.json')
+
+
+def meta_data(date):
+    """return sourceDate in ISO 8601format """
+    return {'sourceDate': datetime.strptime(date, '%a, %d %b %Y %H:%M:%S %Z').replace(tzinfo=UTC).isoformat()}

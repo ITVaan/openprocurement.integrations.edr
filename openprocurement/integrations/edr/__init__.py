@@ -60,6 +60,7 @@ def main(global_config, **settings):
     # Include views
     config.add_route('verify', '/verify')
     config.add_route('details', '/details/{id}')
+    config.add_route('health', '/health')
     config.scan("openprocurement.integrations.edr.views")
 
     return config.make_wsgi_app()

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: openprocurement.integrations.edr 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-03-28 11:05+0300\n"
+"POT-Creation-Date: 2017-05-24 11:55+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -37,11 +37,12 @@ msgstr ""
 #: ../../source/tutorial.rst:13
 msgid ""
 "Response consists of the following fields: `x_edrInternalId`, "
-"`state.registrationStatusDetails`, `state.registrationStatus`, "
+"`registrationStatusDetails`, `registrationStatus`, "
 "`identification.schema`, `identification.id`, `identification.legalName`,"
 " `identification.url`."
-msgstr "Відповідь складається з наступних полів: `x_edrInternalId`, "
-"`state.registrationStatusDetails`, `state.registrationStatus`, "
+msgstr ""
+"Відповідь складається з наступних полів: `x_edrInternalId`, "
+"`registrationStatusDetails`, `registrationStatus`, "
 "`identification.schema`, `identification.id`, `identification.legalName`,"
 " `identification.url`."
 
@@ -50,12 +51,12 @@ msgid "`x_edrInternalId` - unique identification of the subject,"
 msgstr "`x_edrInternalId` - унікальний ідентифікатор суб'єкта ,"
 
 #: ../../source/tutorial.rst:16
-msgid "`state.registrationStatusDetails` - text state of the entity (uk),"
-msgstr "`state.registrationStatusDetails` - текстове відображення стану суб'єкта(укр),"
+msgid "`registrationStatusDetails` - text state of the entity (uk),"
+msgstr "`registrationStatusDetails` - текстове відображення стану суб'єкта(укр),"
 
 #: ../../source/tutorial.rst:17
-msgid "`state.registrationStatus` - text state of the entity,"
-msgstr "`state.registrationStatus` - текстове відображення стану суб'єкта,"
+msgid "`registrationStatus` - text state of the entity,"
+msgstr "`registrationStatus` - текстове відображення стану суб'єкта,"
 
 #: ../../source/tutorial.rst:18
 msgid "`identification.schema` - “UA-EDR”"
@@ -67,8 +68,8 @@ msgid ""
 " - instead of IPN system returns ten zeros, because the data is "
 "confidential,"
 msgstr ""
-"`identification.id` - ЄДРПОУ; якщо суб'єкт - фізична особа підприємець "
-"- замість ІПНа система поверне десять нулів, бо ці дані є конфіденційною "
+"`identification.id` - ЄДРПОУ; якщо суб'єкт - фізична особа підприємець - "
+"замість ІПНа система поверне десять нулів, бо ці дані є конфіденційною "
 "інформацією,"
 
 #: ../../source/tutorial.rst:20
@@ -79,11 +80,19 @@ msgstr "`identification.legalName` -  назва,"
 msgid "`identification.url` - link to the entity with detailed information."
 msgstr "`identification.url` - посилання на екземпляр з деталізованою інформацію."
 
-#: ../../source/tutorial.rst:24
+#: ../../source/tutorial.rst:23
+msgid ""
+"Also response contains `meta.sourceDate` field - date when information "
+"from EDR API was received."
+msgstr ""
+"Також відповідь містить поле `meta.sourceDate` - дата отримання "
+"інформації від ЄДР API."
+
+#: ../../source/tutorial.rst:26
 msgid "Request with Individual Tax Number"
 msgstr "Запит з індивідуальним податковим номером"
 
-#: ../../source/tutorial.rst:26
+#: ../../source/tutorial.rst:28
 msgid ""
 "If you need to obtain information about individual entrepreneurs then "
 "send a request with code IPN:"
@@ -91,47 +100,57 @@ msgstr ""
 "Якщо Вам необхідно отримати інформацію для фізичних осіб-підприємців тоді"
 " необхідно відправити запит з ІПН:"
 
-#: ../../source/tutorial.rst:32
+#: ../../source/tutorial.rst:34
 msgid "Errors"
 msgstr "Помилки"
 
-#: ../../source/tutorial.rst:34
+#: ../../source/tutorial.rst:35
 msgid ""
 "Response to the unsuccessful request contains list of errors  with "
-"description and code in response body and status `403 Forbidden`. If EDR "
-"service returns error, then code error presents in list of errors. In "
-"case list of errors contains only text message it means that an error "
-"occurred on our proxy server."
+"description, code in response body and status."
 msgstr ""
-"Відповідь на невдалий запит містить перелік помилок з описанням та кодом "
-"помилки в тілі відповіді та статус відповіді `403 Forbidden`. Якщо ЄДР "
-"повертає помилку тоді її код присутній в переліку помилок. У випадку коли"
-" перелік помилок містить лише текстовий опис помилки, це означає що "
-"помилка виникла на стороні нашого proxy-серверу."
+"Відповідь на невдалий запит містить список з текстовим відображенням "
+"помилками, коду помилки в тілі відповіді та статусу."
 
 #: ../../source/tutorial.rst:37
 msgid ""
-"When given EDRPOU (IPN or series and number of passport) were not found "
-"in EDR response will contains message `EDRPOU not found`:"
+"API returns the following response when limit of requests to the resource"
+" is reached:"
+msgstr "API повертає таку відповідь, коли вичерпано обмеження запитів до ресурсу:"
+
+#: ../../source/tutorial.rst:41
+msgid "Response contains message with time when current limitation will expire."
+msgstr "Відповідь матиме відповідний текст та час, через який сплине це обмеження."
+
+#: ../../source/tutorial.rst:43
+msgid ""
+"When given EDRPOU (IPN) were not found in EDR response will contains "
+"message `EDRPOU not found`:"
 msgstr ""
 "Коли даний ЄДРПОУ (ІПН або серія на номер паспорту) не знайдений, "
 "відповідь містить повідомлення `EDRPOU not found`."
 
-#: ../../source/tutorial.rst:44
-msgid "File-reference"
-msgstr "Файл-довідка"
-
-#: ../../source/tutorial.rst:45
+#: ../../source/tutorial.rst:48
 msgid ""
-"There are another endpoint `/details/x_edrInternalId` to process request "
-"to EDR to get detailed information using parameter `x_edrInternalId`, "
-"received in first response. Only user from group `robot` have permissions"
-" to process given request. Request looks like:"
+"When GET parameter  `code` or `passport` is not passed proxy-server will "
+"return response with error:"
 msgstr ""
-"Існує також інша вхідна точка `/details/x_edrInternalId` для здійснення "
-"запитів до ЕДР для отримання деталізованної інформації, використовуючи "
-"параметр `x_edrInternalId`, який надходить у відповідь на перший запит. "
-"Тільки користувач з группи `robot` має права на здійснення данного "
-"запиту. Запит має наступний вигляд: "
+"Якщо GET-параметр   `code`  або  `passport`  відсутній в запиті, то "
+"ЕДР-проксі поверне наступну помилку:"
 
+#: ../../source/tutorial.rst:53
+msgid ""
+"Rest of errors appears on the proxy-server side and can contain one of "
+"next messages:"
+msgstr ""
+"Інші помилки виникають на стороні ЕДР-проксі та можуть мати вигляд одної "
+"з наступних помилок:"
+
+#: ../../source/tutorial.rst:57
+msgid "or"
+msgstr "або"
+
+#: ../../source/tutorial.rst:62
+msgid "These errors are not related to the created request."
+msgstr "Ці помилки не зв'язані з данними із запиту."
 

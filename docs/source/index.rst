@@ -23,6 +23,7 @@ Contents:
 
    overview
    tutorial
+   bot
    authentication
 
 
