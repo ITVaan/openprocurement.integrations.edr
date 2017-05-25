@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """Main entry point
 """
-from openprocurement.integrations.edr.utils import ROUTE_PREFIX
-
 if 'test' not in __import__('sys').argv[0]:
     import gevent.monkey
     gevent.monkey.patch_all()
 
 from logging import getLogger
 from openprocurement.integrations.edr.client import EdrClient
+from openprocurement.integrations.edr.utils import ROUTE_PREFIX
 
 
 LOGGER = getLogger("{}.init".format(__name__))
