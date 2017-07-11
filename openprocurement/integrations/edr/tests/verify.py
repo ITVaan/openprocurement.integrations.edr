@@ -228,7 +228,7 @@ class TestVerify(BaseWebTest):
         self.assertEqual(response.status, '403 Forbidden')
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.json['errors'][0]['description'],
-                         [{u'message': u'Wrong name of the GET parameter'}])
+                         [{u'message': u'Need pass id or passport'}])
 
     def test_accept_yaml(self):
         setup_routing(self.edr_api_app, func=response_code)
@@ -244,7 +244,7 @@ class TestVerify(BaseWebTest):
         response = self.app.get('/verify?id=14360570', headers={'Accept': 'application/json'}, status=403)
         self.assertEqual(response.status, '403 Forbidden')
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Content-Type of EDR API response is not application/json'}])
+        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Forbidden'}])
 
     def test_sandbox_mode_data(self):
         """If SANDBOX_MODE=True define func=response_code and check that returns data from test_data_verify.json.
@@ -368,7 +368,7 @@ class TestDetails(BaseWebTest):
         response = self.app.get('/verify?id=14360570', headers={'Accept': 'application/json'}, status=403)
         self.assertEqual(response.status, '403 Forbidden')
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Content-Type of EDR API response is not application/json'}])
+        self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Forbidden'}])
 
     def test_null_fields(self):
         """Check that fields with null values removed"""

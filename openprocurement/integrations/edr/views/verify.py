@@ -6,7 +6,6 @@ from logging import getLogger
 from openprocurement.integrations.edr.utils import (prepare_data_details, prepare_data, error_handler, meta_data,
     get_sandbox_data)
 
-
 LOGGER = getLogger(__name__)
 EDRDetails = namedtuple("EDRDetails", ['param', 'code'])
 default_error_status = 403
@@ -15,20 +14,17 @@ error_message_404 = {u"errorDetails": u"Couldn't find this code in EDR.", u"code
 
 def handle_error(request, response):
     if response.headers['Content-Type'] != 'application/json':
-        return error_handler(request, default_error_status,
-                             {"location": "request", "name": "ip",
-                              "description": [{u'message': u'Content-Type of EDR API response is not application/json'}]})
+        return error_handler(request, default_error_status, {"location": "request", "name": "ip",
+                                                             "description": [{u'message': u'Forbidden'}]})
     if response.status_code == 429:
         seconds_to_wait = response.headers.get('Retry-After')
         request.response.headers['Retry-After'] = seconds_to_wait
         return error_handler(request, 429, {"location": "body", "name": "data",
                                             "description": [{u'message': u'Retry request after {} seconds.'.format(seconds_to_wait)}]})
     elif response.status_code == 502:
-        return error_handler(request, default_error_status, {"location": "body",
-                                                             "name": "data",
+        return error_handler(request, default_error_status, {"location": "body", "name": "data",
                                                              "description": [{u'message': u'Service is disabled or upgrade.'}]})
-    return error_handler(request, default_error_status, {"location": "body",
-                                                         "name": "data",
+    return error_handler(request, default_error_status, {"location": "body", "name": "data",
                                                          "description": response.json()['errors']})
 
 
@@ -41,8 +37,8 @@ def verify_user(request):
     if not code:
         passport = request.params.get('passport', '').encode('utf-8')
         if not passport:
-            return error_handler(request, default_error_status, {"location": "url", "name": "id",
-                                                                 "description": [{u'message': u'Wrong name of the GET parameter'}]})
+            return error_handler(request, default_error_status, {"location": "url", "name": "id", "description":
+                                                                 [{u'message': u'Need pass id or passport'}]})
         details = EDRDetails('passport', passport)
 
     data = get_sandbox_data(role, code)  # return test data if SANDBOX_MODE=True and data exists for given code
@@ -86,5 +82,3 @@ def user_details(request, internal_ids):
             data.append({'data': prepare_data_details(response.json()),
                          'meta': meta_data(response.headers['Date'])})
     return data
-
-
