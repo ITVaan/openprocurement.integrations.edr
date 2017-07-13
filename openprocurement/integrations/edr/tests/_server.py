@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from bottle import request, response
 from simplejson import dumps
+import time
 
 
 SOURCEDATE = 'Tue, 25 Apr 2017 11:56:36 GMT'
@@ -114,6 +115,20 @@ def bad_gateway():
     response.headers['Date'] = SOURCEDATE
     return dumps({"errors": [{"message": "Message."}]})
 
+def create_long_read(delay_sec, response_type):
+    def long_read():
+        time.sleep(delay_sec)
+        if response_type == 'details':
+            return response_details()
+        elif response_type == 'verify':
+            return response_code()
+        else:
+            response.status = 200
+            response.content_type = 'application/json'
+            response.headers['Date'] = SOURCEDATE
+            return dumps({"result": "OK but too long!"})
+
+    return long_read
 
 def two_error_messages():
     response.status = 404
@@ -278,7 +293,6 @@ def bad_gateway_details():
     response.content_type = 'application/json'
     response.headers['Date'] = SOURCEDATE
     return dumps({"errors": [{"message": "Message."}]})
-
 
 def wrong_ip_address():
     response.status = 403
