@@ -7,8 +7,7 @@ if 'test' not in __import__('sys').argv[0]:
 
 from logging import getLogger
 from openprocurement.integrations.edr.client import EdrClient
-from openprocurement.integrations.edr.utils import ROUTE_PREFIX
-
+from openprocurement.integrations.edr.utils import ROUTE_PREFIX, Db
 
 LOGGER = getLogger("{}.init".format(__name__))
 
@@ -55,7 +54,8 @@ def main(global_config, **settings):
                                            settings.get('edr_api_token'),
                                            float(settings.get('edr_timeout')),
                                            int(settings.get('edr_api_port')))
-
+    config.registry.cache_db = Db(settings)
+    config.registry.time_to_live = settings.get("time_to_live", 300)
     # Include views
     config.add_route('verify', '/verify')
     config.add_route('details', '/details/{id}')

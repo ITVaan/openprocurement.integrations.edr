@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import json
+
 import os
 from logging import getLogger
 from json import dumps
@@ -20,7 +22,8 @@ USERS = {}
 ROUTE_PREFIX = '/api/{}'.format(VERSION)
 identification_schema = u'UA-EDR'
 activityKind_scheme = u'КВЕД'
-SANDBOX_MODE = os.environ.get('SANDBOX_MODE', False)
+SANDBOX_MODE = True if os.environ.get('SANDBOX_MODE', "False") == "True" else False
+error_message_404 = {u"errorDetails": u"Couldn't find this code in EDR.", u"code": u"notFound"}
 
 
 class Root(object):
@@ -34,6 +37,53 @@ class Root(object):
 
     def __init__(self, request):
         self.request = request
+
+
+class Db(object):
+    """ Database proxy """
+
+    def __init__(self, config):
+        self.config = config
+
+        self._backend = None
+        self._db_name = None
+        self._port = None
+        self._host = None
+
+        if 'cache_host' in self.config:
+            import redis
+            self._backend = "redis"
+            self._host = self.config.get('cache_host')
+            self._port = self.config.get('cache_port') or 6379
+            self._db_name = self.config.get('cache_db_name') or 0
+            self.db = redis.StrictRedis(host=self._host, port=self._port, db=self._db_name)
+            self.set_value = self.db.set
+            self.has_value = self.db.exists
+
+    def get(self, key):
+        """Get item from db :param key: key in the database
+        :rtype: object
+        """
+        if 'cache_host' in self.config:
+            LOGGER.debug("Getting item {} from the cache".format(key))
+            return self.db.get(key)
+
+    def put(self, key, value, ex=604800):
+        """Put item in db :param key: key in the database :param value: value to be saved :param ex: expiration time"""
+        if 'cache_host' in self.config:
+            LOGGER.debug("Saving key {} to cache".format(key))
+            self.set_value(key, value, ex)
+
+    def has(self, key):
+        """Check if item exists in db :param key: key in the database"""
+        if 'cache_host' in self.config:
+            LOGGER.debug("Checking if code {} is in the cache".format(key))
+            return self.has_value(key)
+
+
+def db_key(code, role):
+    """Generate key for db; :param code - EDR code; :param role: Role of requester, determines type of info"""
+    return "{}_{}_{}".format(code, role, "sandbox" if SANDBOX_MODE else "")
 
 
 def read_users(filename):
@@ -257,18 +307,36 @@ def meta_data(date):
     return datetime.strptime(date, '%a, %d %b %Y %H:%M:%S %Z').replace(tzinfo=UTC).isoformat()
 
 
-def get_sandbox_data(role, code):
+def form_sandbox_details(code):
+    """Creating properly formatted details response"""
+    LOGGER.info('Return test data for {} for bot'.format(code))
+    data = []
+    details_source_date = []
+    for i in xrange(len(TEST_DATA_DETAILS[code])):
+        data.append(prepare_data_details(TEST_DATA_DETAILS[code][i]))
+        details_source_date.append(datetime.now(tz=TZ).isoformat())
+    return {'meta': {'sourceDate': details_source_date[-1], 'detailsSourceDate': details_source_date}, 'data': data}
+
+
+def get_sandbox_data(request, role, code):
+    """Return sandbox data if applicable"""
     if SANDBOX_MODE:
+        if request.registry.cache_db.has(db_key(code, role)):
+            LOGGER.info("Returning cached test data for {} {}".format(code, role))
+            redis_data = json.loads(request.registry.cache_db.get(db_key(code, role)))
+            if redis_data.get("errors"):
+                return error_handler(request, 404, redis_data["errors"])
+            return redis_data
         if role == 'robots' and TEST_DATA_DETAILS.get(code):
-            LOGGER.info('Return test data for {} for bot'.format(code))
-            data = []
-            details_source_date = []
-            for i in xrange(len(TEST_DATA_DETAILS[code])):
-                data.append(prepare_data_details(TEST_DATA_DETAILS[code][i]))
-                details_source_date.append(datetime.now(tz=TZ).isoformat())
-            return {'meta': {'sourceDate': details_source_date[0], 'detailsSourceDate': details_source_date},
-                    'data': data}
+            res = form_sandbox_details(code)
         elif TEST_DATA_VERIFY.get(code):
             LOGGER.info('Return test data for {} for platform'.format(code))
-            return {'data': [prepare_data(d) for d in TEST_DATA_VERIFY[code]],
-                    'meta': {'sourceDate': datetime.now(tz=TZ).isoformat()}}
+            res = {'data': [prepare_data(d) for d in TEST_DATA_VERIFY[code]],
+                   'meta': {'sourceDate': datetime.now(tz=TZ).isoformat()}}
+        else:
+            res = error_handler(request, 404,
+                                {"location": "body", "name": "data",
+                                 "description": [{u"error": error_message_404,
+                                                  u"meta": {"sourceDate": datetime.now(tz=TZ).isoformat()}}]})
+        request.registry.cache_db.put(db_key(code, role), json.dumps(res), ex=request.registry.time_to_live)
+        return res
