@@ -9,7 +9,6 @@ requires = [
     'gevent',
     'pyramid_exclog',
     'requests',
-    'redis',
     'setuptools',
     'pyramid',
     'pytz',
