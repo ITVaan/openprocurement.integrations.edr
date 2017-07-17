@@ -321,6 +321,7 @@ def form_sandbox_details(code):
 def get_sandbox_data(request, role, code):
     """Return sandbox data if applicable"""
     if SANDBOX_MODE:
+        res = None
         if request.registry.cache_db.has(db_key(code, role)):
             LOGGER.info("Returning cached test data for {} {}".format(code, role))
             redis_data = json.loads(request.registry.cache_db.get(db_key(code, role)))
@@ -333,10 +334,6 @@ def get_sandbox_data(request, role, code):
             LOGGER.info('Return test data for {} for platform'.format(code))
             res = {'data': [prepare_data(d) for d in TEST_DATA_VERIFY[code]],
                    'meta': {'sourceDate': datetime.now(tz=TZ).isoformat()}}
-        else:
-            res = error_handler(request, 404,
-                                {"location": "body", "name": "data",
-                                 "description": [{u"error": error_message_404,
-                                                  u"meta": {"sourceDate": datetime.now(tz=TZ).isoformat()}}]})
-        request.registry.cache_db.put(db_key(code, role), json.dumps(res), ex=request.registry.time_to_live)
+        if res:
+            request.registry.cache_db.put(db_key(code, role), json.dumps(res), ex=request.registry.time_to_live)
         return res
