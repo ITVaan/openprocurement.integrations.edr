@@ -7,9 +7,9 @@ import iso8601
 from openprocurement.integrations.edr.tests.base import BaseWebTest, PrefixedRequestClass
 from openprocurement.integrations.edr.tests._server import \
     (setup_routing, response_code, response_passport, check_headers, payment_required, forbidden, not_acceptable,
-     too_many_requests, two_error_messages, bad_gateway,server_error, response_details, too_many_requests_details,
+     too_many_requests, two_error_messages, bad_gateway, server_error, response_details, too_many_requests_details,
      bad_gateway_details, wrong_ip_address, wrong_ip_address_detailed_request, null_fields, sandbox_mode_data,
-     sandbox_mode_data_details, DATE)
+     sandbox_mode_data_details, DATE, create_long_read)
 from openprocurement.integrations.edr.utils import SANDBOX_MODE, TZ
 import yaml
 
@@ -210,6 +210,52 @@ class TestVerify(BaseWebTest):
         self.assertEqual(response.status, '403 Forbidden')
         self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Service is disabled or upgrade.'}])
 
+    def _timeout_check_verify(self, app, delay, is_ok=True):
+        setup_routing(self.edr_api_app, func=create_long_read(delay, 'verify'))
+        response = app.get('/verify?id=14360570', status=200 if is_ok else 403)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status, '200 OK' if is_ok else '403 Forbidden')
+        if not is_ok:
+            self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Gateway Timeout Error'}])
+
+    def test_timeout_mult(self):
+        """Check when EDR times out during verify - mult delay growing mode"""
+
+        # quick response - should be ok
+        self._timeout_check_verify(self.app, 0.01)
+        # 3 sec delayed response - should fail (timeout setting is 2) an increase timeout x2
+        self._timeout_check_verify(self.app, 3, False)
+        # 5 sec delayed response - new timeout is 4 - should fail and set timeout to max 7
+        self._timeout_check_verify(self.app, 5, False)
+        # 8 sec delayed response - new timeout is 7 - should fail and leave timeout 7
+        self._timeout_check_verify(self.app, 8, False)
+        # 6.5 sec delayed response - new timeout is 7 - should succeed and set timeout to 3.5
+        self._timeout_check_verify(self.app, 6.5)
+        # 4 sec delayed response - new timeout is 3.5 - should fail
+        self._timeout_check_verify(self.app, 4, False)
+
+    def test_timeout_add(self):
+        """Check when EDR times out during verify - add delay growing mode"""
+
+        self.app_copy = webtest.TestApp("config:test_conf/tests_copy.ini", relative_to=os.path.dirname(__file__))
+        self.app_copy.authorization = ('Basic', ('platform', 'platform'))
+        self.app_copy.RequestClass = PrefixedRequestClass
+
+        # quick response - should be ok
+        self._timeout_check_verify(self.app_copy, 0.01)
+        # 2 sec delayed response - should fail (timeout setting is 1) an increase timeout +2
+        self._timeout_check_verify(self.app_copy, 2, False)
+        # 4 sec delayed response - should fail again (timeout 3) an increase timeout +2
+        self._timeout_check_verify(self.app_copy, 4, False)
+        # 6 sec delayed response - should fail again (timeout 5) an increase timeout to max - 6
+        self._timeout_check_verify(self.app_copy, 6, False)
+        # 7 sec delayed response - should fail (timeout 6 max)
+        self._timeout_check_verify(self.app_copy, 7, False)
+        # 5 sec delayed response - should succeed (timeout 6) and decrease timeout to 4
+        self._timeout_check_verify(self.app_copy, 5)
+        # 5 sec delayed response - should fail (timeout 4)
+        self._timeout_check_verify(self.app_copy, 5, False)
+
     def test_two_error_messages(self):
         """Check when EDR passes two errors in response"""
         setup_routing(self.edr_api_app, func=two_error_messages)
@@ -374,6 +420,53 @@ class TestDetails(BaseWebTest):
             self.assertEqual(response.status, '403 Forbidden')
             self.assertEqual(response.json['errors'][0]['description'],
                              [{u'message': u'Service is disabled or upgrade.'}])
+
+    def _timeout_check_details(self, app, delay, is_ok=True):
+        setup_routing(self.edr_api_app, func=response_code)
+        setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=create_long_read(delay, 'details'))
+        response = app.get('/verify?id=14360570', status=200 if is_ok else 403)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status, '200 OK' if is_ok else '403 Forbidden')
+        if not is_ok:
+            self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Gateway Timeout Error'}])
+
+    def test_timeout_mult(self):
+        """Check when EDR times out during details - mult delay growing mode"""
+
+        # quick response - should be ok
+        self._timeout_check_details(self.app, 0.2)
+        # 3 sec delayed response - should fail (timeout setting is 2) an increase timeout x2
+        self._timeout_check_details(self.app, 3, False)
+        # 5 sec delayed response - new timeout is 4 - should fail and set timeout to max 7
+        self._timeout_check_details(self.app, 5, False)
+        # 8 sec delayed response - new timeout is 7 - should fail and leave timeout 7
+        self._timeout_check_details(self.app, 8, False)
+        # 6.5 sec delayed response - new timeout is 7 - should succeed and set timeout to 3.5
+        self._timeout_check_details(self.app, 6.5)
+        # 4 sec delayed response - new timeout is 3.5 - should fail
+        self._timeout_check_details(self.app, 4, False)
+
+    def test_timeout_add(self):
+        """Check when EDR times out during details - add delay growing mode"""
+
+        self.app_copy = webtest.TestApp("config:test_conf/tests_copy.ini", relative_to=os.path.dirname(__file__))
+        self.app_copy.authorization = ('Basic', ('robot', 'robot'))
+        self.app_copy.RequestClass = PrefixedRequestClass
+
+        # quick response - should be ok
+        self._timeout_check_details(self.app_copy, 0.2)
+        # 2 sec delayed response - should fail (timeout setting is 1) an increase timeout +2
+        self._timeout_check_details(self.app_copy, 2, False)
+        # 4 sec delayed response - should fail again (timeout 3) an increase timeout +2
+        self._timeout_check_details(self.app_copy, 4, False)
+        # 6 sec delayed response - should fail again (timeout 5) an increase timeout to max - 6
+        self._timeout_check_details(self.app_copy, 6, False)
+        # 7 sec delayed response - should fail (timeout 6 max)
+        self._timeout_check_details(self.app_copy, 7, False)
+        # 5 sec delayed response - should succeed (timeout 6) and decrease timeout to 4
+        self._timeout_check_details(self.app_copy, 5)
+        # 5 sec delayed response - should fail (timeout 4)
+        self._timeout_check_details(self.app_copy, 5, False)
 
     def test_accept_yaml_details(self):
         setup_routing(self.edr_api_app, func=response_code)

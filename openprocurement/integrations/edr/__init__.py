@@ -53,8 +53,12 @@ def main(global_config, **settings):
     # Init edr connection
     config.registry.edr_client = EdrClient(settings.get('edr_api_server'),
                                            settings.get('edr_api_token'),
-                                           float(settings.get('edr_timeout')),
-                                           int(settings.get('edr_api_port')))
+                                           int(settings.get('edr_api_port')),
+                                           float(settings.get('edr_timeout_min', 1)),
+                                           float(settings.get('edr_timeout_max', 60)),
+                                           float(settings.get('edr_timeout_step', 2)),
+                                           settings.get('edr_timeout_mode', 'mult')
+                                           )
 
     # Include views
     config.add_route('verify', '/verify')
