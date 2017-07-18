@@ -7,7 +7,7 @@ import iso8601
 from openprocurement.integrations.edr.tests.base import BaseWebTest, PrefixedRequestClass
 from openprocurement.integrations.edr.tests._server import \
     (setup_routing, response_code, response_passport, check_headers, payment_required, forbidden, not_acceptable,
-     too_many_requests, two_error_messages, bad_gateway,server_error, response_details, too_many_requests_details,
+     too_many_requests, two_error_messages, bad_gateway, server_error, response_details, too_many_requests_details,
      bad_gateway_details, wrong_ip_address, wrong_ip_address_detailed_request, null_fields, sandbox_mode_data,
      sandbox_mode_data_details, DATE, create_long_read)
 from openprocurement.integrations.edr.utils import SANDBOX_MODE, TZ
