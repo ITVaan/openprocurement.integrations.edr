@@ -424,11 +424,16 @@ class TestDetails(BaseWebTest):
     def _timeout_check_details(self, app, delay, is_ok=True):
         setup_routing(self.edr_api_app, func=response_code)
         setup_routing(self.edr_api_app, path='/1.0/subjects/2842335', func=create_long_read(delay, 'details'))
-        response = app.get('/verify?id=14360570', status=200 if is_ok else 403)
+        response = app.get('/verify?id=14360570', expect_errors=True)
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status, '200 OK' if is_ok else '403 Forbidden')
-        if not is_ok:
-            self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Gateway Timeout Error'}])
+        if SANDBOX_MODE:
+            self.assertEqual(response.status, '404 Not Found')
+            self.assertEqual(response.json['errors'][0]['description'][0]['error']['errorDetails'],
+                             "Couldn't find this code in EDR.")
+        else:
+            self.assertEqual(response.status, '200 OK' if is_ok else '403 Forbidden')
+            if not is_ok:
+                self.assertEqual(response.json['errors'][0]['description'], [{u'message': u'Gateway Timeout Error'}])
 
     def test_timeout_mult(self):
         """Check when EDR times out during details - mult delay growing mode"""
