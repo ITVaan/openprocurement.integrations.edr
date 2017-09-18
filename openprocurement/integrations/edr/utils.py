@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-import requests
 from json import dumps
 from hashlib import sha512
 from datetime import datetime
 from logging import getLogger
 from pytz import timezone, UTC
 from collections import namedtuple
+from requests.exceptions import ReadTimeout, ConnectTimeout
 from pyramid.security import Allow
 from ConfigParser import ConfigParser
 from pkg_resources import get_distribution
@@ -365,8 +365,7 @@ def user_details(request, internal_ids):
     for internal_id in internal_ids:
         try:
             response = request.registry.edr_client.get_subject_details(request.authenticated_role, internal_id)
-        except (requests.exceptions.ReadTimeout,
-                requests.exceptions.ConnectTimeout):
+        except (ReadTimeout, ConnectTimeout):
             return error_handler(request, default_error_status, {"location": "url", "name": "id",
                                                                  "description": [{u'message': u'Gateway Timeout Error'}]})
         if response.status_code != 200:

@@ -7,6 +7,7 @@ requires = [
     'PyYAML',
     'chaussette',
     'gevent',
+    'mock',
     'pyramid_exclog',
     'requests',
     'redis',
