@@ -333,8 +333,7 @@ def get_sandbox_data(request, code):
         res = None
         if request.authenticated_role == 'robots':
             res = get_sandbox_details(request, code)
-            if res.get("errors"):
-                return error_handler(request, 404, res["errors"][0])
+            return res
         elif TEST_DATA_VERIFY.get(code):
             LOGGER.info('Return test data for {} for platform'.format(code))
             res = {'data': [prepare_data(d) for d in TEST_DATA_VERIFY[code]],
